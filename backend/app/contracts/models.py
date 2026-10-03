@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
@@ -11,9 +12,7 @@ from .enums import (
     TipoActivoOficial,
 )
 
-
 # Contrato externo: entrada oficial del endpoint /process.
-
 
 class InteraccionEntrada(BaseModel):
     autor: str
@@ -21,12 +20,10 @@ class InteraccionEntrada(BaseModel):
     tipo: str
     texto: str
 
-
 class SolicitudProcesamiento(BaseModel):
     origen_comunidad: str
     periodo_referencia: str
     interacciones: list[InteraccionEntrada] = Field(max_length=500)
-
 
 # Contrato externo: respuesta oficial del endpoint /process.
 
@@ -79,12 +76,12 @@ class RespuestaProcesamiento(BaseModel):
 
 
 class InteraccionInterna(BaseModel):
-    id: str
+    id: str = Field(default_factory=lambda: f"int_{uuid4().hex}")
     autor: str
     canal: str
     tipo: str
     texto: str
-    timestamp: datetime
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class AnalisisInterno(BaseModel):

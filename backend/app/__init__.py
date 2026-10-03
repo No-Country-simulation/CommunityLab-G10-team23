@@ -1,0 +1,1 @@
+"""CommunityLab backend application package."""
