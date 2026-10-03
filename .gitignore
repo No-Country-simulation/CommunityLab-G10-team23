@@ -1,5 +1,10 @@
 backend/app/__pycache__/main.cpython-311.pyc
 
+# Local environment files (keep only the documented template in version control)
+.env
+.env.*
+!.env.example
+
 # Python bytecode and cache directories
 __pycache__/
 *.py[cod]
