@@ -1,7 +1,11 @@
 from unittest.mock import patch
 
 from app.contracts.enums import AssetCategory
-from app.contracts.models import AnalisisInterno, SolicitudProcesamiento
+from app.contracts.models import (
+    AnalisisInterno,
+    ResultadoGeneracionInterno,
+    SolicitudProcesamiento,
+)
 from app.workflow.pipeline import process_batch
 
 
@@ -56,7 +60,14 @@ def test_pipeline_passes_each_team_a_analysis_to_team_b():
         "app.workflow.pipeline.analyze_interaction",
         side_effect=analyses,
     ):
-        result = process_batch(request, classifier=FakeClassifier())
+        result = process_batch(
+            request,
+            classifier=FakeClassifier(),
+            asset_generator=lambda analysis: ResultadoGeneracionInterno(
+                interaccion_id=analysis.interaccion_id,
+                activos_candidatos=[],
+            ),
+        )
 
     assert len(result.interacciones_procesadas) == 2
     assert all(item.degradado is False for item in result.interacciones_procesadas)

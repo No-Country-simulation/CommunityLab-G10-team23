@@ -1,12 +1,13 @@
 """Internal Team A–D contracts and the Team A batch response envelope."""
 
 from app.contracts.models import (
+    ActivoCandidato,
     AnalisisInterno,
     EnrutamientoInterno,
     InteraccionInterna,
     OportunidadInterna,
 )
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class InteraccionProcesada(BaseModel):
@@ -24,6 +25,7 @@ class RespuestaIngesta(BaseModel):
 class ResultadoPipelineItem(InteraccionProcesada):
     oportunidad: OportunidadInterna | None = None
     enrutamiento: EnrutamientoInterno | None = None
+    activos_candidatos: list[ActivoCandidato] = Field(default_factory=list)
     error: str | None = None
 
 

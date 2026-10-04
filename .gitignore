@@ -15,6 +15,7 @@ __pycache__/
 .tox/
 .venv/
 venv/
+backend/data/
 
 # Cython / compiled build artifacts
 .cython_debug/

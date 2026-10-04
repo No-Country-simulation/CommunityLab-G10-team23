@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 from app.ai.analyzer import analyze_interaction
+from app.content.generator import generate_assets
+from app.content.repository import upsert_generation_result
 from app.contracts.models import (
     AnalisisInterno,
     InteraccionInterna,
@@ -33,6 +35,7 @@ def process_batch(
     request: SolicitudProcesamiento,
     *,
     classifier: Any | None = None,
+    asset_generator: Callable | None = None,
 ) -> ResultadoPipeline:
     """Orquesta Equipo A y B para cada interacción del batch."""
     classifier = classifier or create_llm_classifier()
@@ -62,6 +65,8 @@ def process_batch(
             degraded = True
             error = f"Equipo A: {analysis_error}"
 
+        team_b_result = None
+        generated = None
         try:
             graph_result = graph.invoke(
                 {
@@ -71,8 +76,15 @@ def process_batch(
             )
             team_b_result = graph_result["resultado"]
         except Exception as classification_error:
-            team_b_result = None
             error = _combine_errors(error, f"Equipo B: {classification_error}")
+
+        if team_b_result is not None:
+            try:
+                generated = (asset_generator or generate_assets)(team_b_result)
+                if generated.activos_candidatos:
+                    upsert_generation_result(generated)
+            except Exception as content_error:
+                error = _combine_errors(error, f"Equipo C: {content_error}")
 
         processed.append(
             ResultadoPipelineItem(
@@ -81,6 +93,7 @@ def process_batch(
                 degradado=degraded,
                 oportunidad=(team_b_result.oportunidad if team_b_result else None),
                 enrutamiento=(team_b_result.enrutamiento if team_b_result else None),
+                activos_candidatos=(generated.activos_candidatos if generated else []),
                 error=error,
             )
         )

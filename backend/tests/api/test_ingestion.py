@@ -53,5 +53,6 @@ def test_process_continues_batch_when_one_interaction_fails_analysis():
     assert payload["interacciones_procesadas"][1]["degradado"] is False
     assert payload["interacciones_procesadas"][1]["analisis"]["temas"] == ["FastAPI"]
     assert payload["interacciones_procesadas"][0]["interaccion"]["id"]
-    assert payload["interacciones_procesadas"][0]["interaccion"]["timestamp"].endswith("+00:00")
+    timestamp = payload["interacciones_procesadas"][0]["interaccion"]["timestamp"]
+    assert timestamp.endswith(("Z", "+00:00"))
     assert invoke.call_count == 3

@@ -111,6 +111,7 @@ class ResultadoAnalisisInterno(BaseModel):
 
 
 class ActivoCandidato(BaseModel):
+    candidato_id: str = Field(default_factory=lambda: f"cand_{uuid4().hex}")
     tipo_activo: TipoActivoOficial
     contenido: dict[str, Any]
     estado_aprobacion: EstadoAprobacion = EstadoAprobacion.pendiente
