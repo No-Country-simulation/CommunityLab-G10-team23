@@ -3,6 +3,7 @@
 import os
 from typing import Any
 
+from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from tenacity import retry, stop_after_attempt, wait_fixed
 
@@ -44,12 +45,13 @@ class _LazyStructuredChain:
     def _build(self) -> Any:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
+        load_dotenv()
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError("Falta GEMINI_API_KEY en las variables de entorno")
 
         llm = ChatGoogleGenerativeAI(
-            model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
+            model=os.getenv("GEMINI_MODEL", "gemini-3.8-flash"),
             temperature=0,
             google_api_key=api_key,
         )
