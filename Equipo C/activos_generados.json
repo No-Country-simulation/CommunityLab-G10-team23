@@ -1,0 +1,218 @@
+{
+  "activos_candidatos": [
+    {
+      "interaccion_id": "int_carlosramirez",
+      "categoria": "SUCCESS_STORY",
+      "tipo_activo": "post_linkedin",
+      "contenido": {
+        "titulo": "De aprendiz a líder",
+        "copy": "Comencé como becario en el área de producción. Al principio me sentía inseguro, pero poco a poco fui aprendiendo cada detalle del proceso y apoyando a mis compañeros. Después de dos años de esfuerzo y constancia, hoy tengo la responsabilidad de liderar un equipo de 10 personas y me siento orgulloso de impulsar proyectos que mejoran la eficiencia de la empresa.",
+        "canal_recomendado": "LinkedIn Oficial"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "d5d1c0eb-265b-4e05-a1ca-507450828d9b",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:31:58.234025+00:00"
+    },
+    {
+      "interaccion_id": "int_carlosramirez",
+      "categoria": "SUCCESS_STORY",
+      "tipo_activo": "destaque_newsletter_semanal",
+      "contenido": {
+        "seccion": "Logro de la Semana",
+        "copy": "Comencé como becario en el área de producción. Al principio me sentía inseguro, pero poco a poco fui aprendiendo cada detalle del proceso y apoyando a mis compañeros. Después de dos años de esfuerzo y constancia, hoy tengo la responsabilidad de liderar un equipo de 10 personas y me siento orgulloso de impulsar proyectos que mejoran la eficiencia de la empresa.",
+        "canal_recomendado": "Newsletter"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "c4106bf3-2db6-4c6e-9dea-c5f52a1c0d25",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:31:58.234089+00:00"
+    },
+    {
+      "interaccion_id": "int_carlosramirez",
+      "categoria": "SUCCESS_STORY",
+      "tipo_activo": "sugerencia_contenido_faq",
+      "contenido": {
+        "pregunta": "De aprendiz a líder",
+        "respuesta_sugerida": "Comencé como becario en el área de producción. Al principio me sentía inseguro, pero poco a poco fui aprendiendo cada detalle del proceso y apoyando a mis compañeros. Después de dos años de esfuerzo y constancia, hoy tengo la responsabilidad de liderar un equipo de 10 personas y me siento orgulloso de impulsar proyectos que mejoran la eficiencia de la empresa.",
+        "canal_recomendado": "FAQ"
+      },
+      "estado_aprobacion": "aprobado",
+      "candidato_id": "587b4fb1-c830-4ac8-90ab-790d68ac6845",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:31:58.234123+00:00",
+      "revisado_por": "usuario_streamlit",
+      "revisado_en": "2026-10-02T23:37:17.878825+00:00"
+    },
+    {
+      "interaccion_id": "int_lauragonzalez",
+      "categoria": "EDUCATIONAL_CONTENT",
+      "tipo_activo": "post_linkedin",
+      "contenido": {
+        "titulo": "Tips de la Semana",
+        "copy": "Durante mucho tiempo me costaba organizar mi tiempo entre estudios y trabajo. Me sentía abrumada y sin energía. Con disciplina y aplicando técnicas de productividad, logré equilibrar mis responsabilidades. Ahora quiero compartir 5 consejos prácticos que me ayudaron a mejorar mi rendimiento y alcanzar mis metas personales.",
+        "canal_recomendado": "LinkedIn Oficial"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "494e4d31-dfc3-42d6-a25b-b866184006d7",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:00.555609+00:00"
+    },
+    {
+      "interaccion_id": "int_lauragonzalez",
+      "categoria": "EDUCATIONAL_CONTENT",
+      "tipo_activo": "destaque_newsletter_semanal",
+      "contenido": {
+        "seccion": "Tips de la Semana",
+        "copy": "Durante mucho tiempo me costaba organizar mi tiempo entre estudios y trabajo. Me sentía abrumada y sin energía. Con disciplina y aplicando técnicas de productividad, logré equilibrar mis responsabilidades. Ahora quiero compartir 5 consejos prácticos que me ayudaron a mejorar mi rendimiento y alcanzar mis metas personales.",
+        "canal_recomendado": "Newsletter"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "e96ddcf3-5f27-4864-891a-9d7c906d99ae",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:00.555682+00:00"
+    },
+    {
+      "interaccion_id": "int_lauragonzalez",
+      "categoria": "EDUCATIONAL_CONTENT",
+      "tipo_activo": "sugerencia_contenido_faq",
+      "contenido": {
+        "pregunta": "Pregunta sugerida",
+        "respuesta_sugerida": "Durante mucho tiempo me costaba organizar mi tiempo entre estudios y trabajo. Me sentía abrumada y sin energía. Con disciplina y aplicando técnicas de productividad, logré equilibrar mis responsabilidades. Ahora quiero compartir 5 consejos prácticos que me ayudaron a mejorar mi rendimiento y alcanzar mis metas personales.",
+        "canal_recomendado": "FAQ"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "2a46079e-9f15-4402-9fe3-ec2451f8a431",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:00.555721+00:00"
+    },
+    {
+      "interaccion_id": "int_marianasouza",
+      "categoria": "SUCCESS_STORY",
+      "tipo_activo": "post_linkedin",
+      "contenido": {
+        "titulo": "De la comunidad al mercado",
+        "copy": "Siempre participé activamente en la comunidad estudiantil, pero me frustraba no encontrar oportunidades laborales. Gracias al apoyo de la plataforma, conseguí mi primera entrevista y fui contratada en una empresa de tecnología. Hoy me siento motivada a inspirar a otros jóvenes a confiar en sus capacidades y buscar nuevas oportunidades.",
+        "canal_recomendado": "LinkedIn Oficial"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "59022781-3edc-427a-aef3-578d7771c84c",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:02.829594+00:00"
+    },
+    {
+      "interaccion_id": "int_marianasouza",
+      "categoria": "SUCCESS_STORY",
+      "tipo_activo": "destaque_newsletter_semanal",
+      "contenido": {
+        "seccion": "Logro de la Semana",
+        "copy": "Siempre participé activamente en la comunidad estudiantil, pero me frustraba no encontrar oportunidades laborales. Gracias al apoyo de la plataforma, conseguí mi primera entrevista y fui contratada en una empresa de tecnología. Hoy me siento motivada a inspirar a otros jóvenes a confiar en sus capacidades y buscar nuevas oportunidades.",
+        "canal_recomendado": "Newsletter"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "9e10004d-661f-4290-8f86-1de56d4108e6",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:02.829647+00:00"
+    },
+    {
+      "interaccion_id": "int_marianasouza",
+      "categoria": "SUCCESS_STORY",
+      "tipo_activo": "sugerencia_contenido_faq",
+      "contenido": {
+        "pregunta": "De la comunidad al mercado",
+        "respuesta_sugerida": "Siempre participé activamente en la comunidad estudiantil, pero me frustraba no encontrar oportunidades laborales. Gracias al apoyo de la plataforma, conseguí mi primera entrevista y fui contratada en una empresa de tecnología. Hoy me siento motivada a inspirar a otros jóvenes a confiar en sus capacidades y buscar nuevas oportunidades.",
+        "canal_recomendado": "FAQ"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "12ae227a-b68b-4345-a63b-f5443cedeb75",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:02.829678+00:00"
+    },
+    {
+      "interaccion_id": "int_joseperez",
+      "categoria": "FAQ",
+      "tipo_activo": "post_linkedin",
+      "contenido": {
+        "titulo": "Historia destacada",
+        "copy": "Comencé como técnico junior y me enfrenté a múltiples retos. Hubo momentos en los que pensé en rendirme, pero con disciplina, mentoría constante y capacitación en nuevas tecnologías logré ascender a un puesto de coordinación. Mi experiencia demuestra que la perseverancia y el aprendizaje continuo son claves para crecer profesionalmente.",
+        "canal_recomendado": "LinkedIn Oficial"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "780f5fc6-ed3d-4916-baee-718bb1ddcf0c",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:05.157627+00:00"
+    },
+    {
+      "interaccion_id": "int_joseperez",
+      "categoria": "FAQ",
+      "tipo_activo": "destaque_newsletter_semanal",
+      "contenido": {
+        "seccion": "Logro de la Semana",
+        "copy": "Comencé como técnico junior y me enfrenté a múltiples retos. Hubo momentos en los que pensé en rendirme, pero con disciplina, mentoría constante y capacitación en nuevas tecnologías logré ascender a un puesto de coordinación. Mi experiencia demuestra que la perseverancia y el aprendizaje continuo son claves para crecer profesionalmente.",
+        "canal_recomendado": "Newsletter"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "2c530b32-46bf-42c8-b981-444169353709",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:05.157695+00:00"
+    },
+    {
+      "interaccion_id": "int_joseperez",
+      "categoria": "FAQ",
+      "tipo_activo": "sugerencia_contenido_faq",
+      "contenido": {
+        "pregunta": "¿Cómo replicar el caso de éxito de José?",
+        "respuesta_sugerida": "Comencé como técnico junior y me enfrenté a múltiples retos. Hubo momentos en los que pensé en rendirme, pero con disciplina, mentoría constante y capacitación en nuevas tecnologías logré ascender a un puesto de coordinación. Mi experiencia demuestra que la perseverancia y el aprendizaje continuo son claves para crecer profesionalmente.",
+        "canal_recomendado": "FAQ"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "bac74a03-cd9c-436b-be23-0f488f34df0b",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:05.157734+00:00"
+    },
+    {
+      "interaccion_id": "int_anafernandez",
+      "categoria": "SUCCESS_STORY",
+      "tipo_activo": "post_linkedin",
+      "contenido": {
+        "titulo": "Innovación en acción",
+        "copy": "Detecté un problema en el sistema de logística de mi empresa y decidí proponer una solución innovadora. Fueron meses de trabajo intenso, pero finalmente implementé un sistema que redujo costos en un 30% y mejoró la satisfacción de los clientes. Esta iniciativa me permitió demostrar que la innovación puede transformar una organización.",
+        "canal_recomendado": "LinkedIn Oficial"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "8ae6df06-831c-4985-bcd8-297ba51c2230",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:07.325314+00:00"
+    },
+    {
+      "interaccion_id": "int_anafernandez",
+      "categoria": "SUCCESS_STORY",
+      "tipo_activo": "destaque_newsletter_semanal",
+      "contenido": {
+        "seccion": "Logro de la Semana",
+        "copy": "Detecté un problema en el sistema de logística de mi empresa y decidí proponer una solución innovadora. Fueron meses de trabajo intenso, pero finalmente implementé un sistema que redujo costos en un 30% y mejoró la satisfacción de los clientes. Esta iniciativa me permitió demostrar que la innovación puede transformar una organización.",
+        "canal_recomendado": "Newsletter"
+      },
+      "estado_aprobacion": "pendiente",
+      "candidato_id": "7f8db4f9-d079-4ff3-901c-182771997776",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:07.325376+00:00"
+    },
+    {
+      "interaccion_id": "int_anafernandez",
+      "categoria": "SUCCESS_STORY",
+      "tipo_activo": "sugerencia_contenido_faq",
+      "contenido": {
+        "pregunta": "Innovación en acción",
+        "respuesta_sugerida": "Detecté un problema en el sistema de logística de mi empresa y decidí proponer una solución innovadora. Fueron meses de trabajo intenso, pero finalmente implementé un sistema que redujo costos en un 30% y mejoró la satisfacción de los clientes. Esta iniciativa me permitió demostrar que la innovación puede transformar una organización.",
+        "canal_recomendado": "FAQ"
+      },
+      "estado_aprobacion": "aprobado",
+      "candidato_id": "ce59ee58-924d-4d35-985d-2d7824088d62",
+      "uso_fallback_llm": true,
+      "creado_en": "2026-10-02T23:32:07.325406+00:00",
+      "revisado_por": "usuario_streamlit",
+      "revisado_en": "2026-10-02T23:37:05.785758+00:00"
+    }
+  ]
+}
