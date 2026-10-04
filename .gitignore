@@ -1,0 +1,35 @@
+backend/app/__pycache__/main.cpython-311.pyc
+
+# Local environment files (keep only the documented template in version control)
+.env
+.env.*
+!.env.example
+
+# Python bytecode and cache directories
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.venv/
+venv/
+backend/data/
+
+# Cython / compiled build artifacts
+.cython_debug/
+build/
+dist/
+*.so
+*.pyd
+*.egg-info/
+
+# Temporary files and editor/OS artifacts
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+.ipynb_checkpoints/

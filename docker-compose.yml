@@ -1,6 +1,14 @@
 services:
   backend:
     build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
 
   frontend:
     build: ./frontend
