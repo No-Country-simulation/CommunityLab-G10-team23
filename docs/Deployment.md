@@ -28,7 +28,7 @@ docker compose up --build backend
 
 El volumen `./backend:/app` monta el código en el contenedor y Uvicorn usa `--reload` para desarrollo. Detén el servicio con `Ctrl+C`; limpia contenedores con `docker compose down`.
 
-Compose también declara `frontend`, pero el código actual (`frontend/app.py`) solo imprime un texto y termina; el dashboard real está pendiente. Por eso el comando recomendado aquí es iniciar `backend` de forma explícita.
+Compose también declara `frontend`, una aplicación Next.js con la bandeja de revisión HITL en `http://localhost:3000`. Para levantar ambos servicios usa `docker compose up --build`; los detalles de uso y solución de problemas están en [frontend/README.md](../frontend/README.md).
 
 ## Pruebas locales
 

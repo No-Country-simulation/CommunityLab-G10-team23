@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 from uuid import uuid4
 
 from app.ai.analyzer import analyze_interaction
@@ -31,16 +31,15 @@ def _fallback_analysis() -> AnalisisInterno:
     )
 
 
-def process_batch(
+def iter_batch(
     request: SolicitudProcesamiento,
     *,
     classifier: Any | None = None,
     asset_generator: Callable | None = None,
-) -> ResultadoPipeline:
-    """Orquesta Equipo A y B para cada interacción del batch."""
+) -> Iterator[ResultadoPipelineItem]:
+    """Orquesta Equipos A, B y C interacción por interacción, entregando cada resultado al terminarlo."""
     classifier = classifier or create_llm_classifier()
     graph = build_classification_graph(classifier)
-    processed: list[ResultadoPipelineItem] = []
 
     for incoming in request.interacciones:
         interaction = InteraccionInterna(
@@ -86,22 +85,30 @@ def process_batch(
             except Exception as content_error:
                 error = _combine_errors(error, f"Equipo C: {content_error}")
 
-        processed.append(
-            ResultadoPipelineItem(
-                interaccion=interaction,
-                analisis=analysis,
-                degradado=degraded,
-                oportunidad=(team_b_result.oportunidad if team_b_result else None),
-                enrutamiento=(team_b_result.enrutamiento if team_b_result else None),
-                activos_candidatos=(generated.activos_candidatos if generated else []),
-                error=error,
-            )
+        yield ResultadoPipelineItem(
+            interaccion=interaction,
+            analisis=analysis,
+            degradado=degraded,
+            oportunidad=(team_b_result.oportunidad if team_b_result else None),
+            enrutamiento=(team_b_result.enrutamiento if team_b_result else None),
+            activos_candidatos=(generated.activos_candidatos if generated else []),
+            error=error,
         )
 
+
+def process_batch(
+    request: SolicitudProcesamiento,
+    *,
+    classifier: Any | None = None,
+    asset_generator: Callable | None = None,
+) -> ResultadoPipeline:
+    """Procesa el lote completo de forma síncrona."""
     return ResultadoPipeline(
         origen_comunidad=request.origen_comunidad,
         periodo_referencia=request.periodo_referencia,
-        interacciones_procesadas=processed,
+        interacciones_procesadas=list(
+            iter_batch(request, classifier=classifier, asset_generator=asset_generator)
+        ),
     )
 
 
@@ -111,4 +118,4 @@ def _combine_errors(previous: str | None, current: str) -> str:
     return f"{previous}; {current}"
 
 
-__all__ = ["process_batch"]
+__all__ = ["iter_batch", "process_batch"]

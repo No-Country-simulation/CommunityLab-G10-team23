@@ -76,25 +76,19 @@ export interface ResultadoPipeline {
   interacciones_procesadas: ResultadoPipelineItem[];
 }
 
-export type AssetCategoryKey = "linkedin" | "newsletter" | "faq" | "testimonios";
+export type EstadoTrabajo = "en_cola" | "en_proceso" | "completado" | "fallido";
 
-export interface PublicationCard {
-  id: string;
-  candidato_id?: string;
-  tipo_activo: TipoActivoOficial | "testimonio_comunidad";
-  titulo: string;
-  enfoque: string;
-  contenido: string;
-  plataforma: AssetCategoryKey;
-  estado_aprobacion: EstadoAprobacion;
-  relevance_score?: number;
-  autor_origen?: string;
-  canal_origen?: string;
-  detalles?: {
-    potencial_engagement?: string;
-    canal_recomendado?: string;
-    seccion_newsletter?: string;
-    tema_faq?: string;
-    status_faq?: string;
-  };
+export interface TrabajoPipeline {
+  job_id: string;
+  estado: EstadoTrabajo;
+  origen_comunidad: string;
+  periodo_referencia: string;
+  total: number;
+  procesadas: number;
+  desde: number;
+  interacciones_procesadas: ResultadoPipelineItem[];
+  error?: string | null;
 }
+
+// Vista de revisión (solo frontend)
+export type ReviewTab = "todos" | "linkedin" | "newsletter" | "faq" | "alertas";
