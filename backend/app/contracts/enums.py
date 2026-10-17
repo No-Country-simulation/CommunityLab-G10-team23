@@ -31,10 +31,18 @@ class EstadoAlmacenamientoOCI(str, Enum):
     guardado_con_exito = "guardado_con_exito"
 
 
+class EstadoTrabajo(str, Enum):
+    en_cola = "en_cola"
+    en_proceso = "en_proceso"
+    completado = "completado"
+    fallido = "fallido"
+
+
 __all__ = [
     "AssetCategory",
     "TipoActivoOficial",
     "EstadoAprobacion",
     "EstadoRespuesta",
     "EstadoAlmacenamientoOCI",
+    "EstadoTrabajo",
 ]

@@ -1,0 +1,11 @@
+# Se generan dentro de la imagen (npm install / npm run build); copiarlos desde Windows
+# infla el contexto de build y mezclaría binarios de otra plataforma.
+node_modules
+.next
+npm-debug.log*
+
+# Archivos locales que no pertenecen a la imagen
+.env*
+Dockerfile
+.dockerignore
+README.md
