@@ -1,0 +1,33 @@
+# Configuración Rápida de Credenciales OCI (Equipo D)
+
+Este documento contiene los comandos exactos de una sola línea para configurar las credenciales de OCI Object Storage en la instancia.
+
+---
+
+## Opción Automática (Recomendada - Sin copiar claves)
+
+Ejecuta este comando de una sola línea en tu terminal de `instancia-doa`:
+
+```bash
+cd ~/CommunityLab-G10-team23 && git pull origin feature/frontend-oci-storage && bash scripts/setup_oci.sh && sudo docker compose restart backend
+```
+
+---
+
+## Opción Manual (Paso a paso en una sola línea)
+
+Si prefieres ejecutarlo manualmente, copia esta única línea completa:
+
+```bash
+mkdir -p ~/.oci && echo "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2Z0lCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktnd2dnU2tBZ0VBQW9JQkFRQ3d3V2dJVi9lR1VUWi8KT3dmL3cxRE1Wa1lpbllabHU2S09lVTRFYzh6UjFTcTRTaHJ3QkZIQTRISERKV3l4MUEzT3FVZENmcVhxU1NnNQpNY2tsbFRsTEptWGFRcS9nU0Z0cWJaalVpRDN2b3hxeUFuT1BIeWNuYkRSN1JrQk84ZEt2Z28xbVk0TFlsUGdkCkcyc3pONDdxb2ZlZHFTTHF0Y0JLSERjUG56UVFkMmxJNG9WL0FSOFZ1QnBpZkFBTkhaczdPTkRRY1poZEdqNWgKOW9WTXZWb3czTzV2TlUybUthb3IvQnVJeU9qOHR0S0NnRU9HYVVOS2hWQjg4bTJIMnFFaXNMeGVtRVZuckVhWQp6MlprZ0lMZDljS295dk45Z1V2QkFRYkRlZC8xODJBN1V3MnROcnZBeE81QjRDK0s0V3ZmSzMvd0tla0h2b3JwCnl6Z1loLy9oQWdNQkFBRUNnZ0VBQXRTNXJYekljamRndGpwbUtCNGZFQ05EZXI1amRMT2I3S0NQNzd1QnNzU0oKYTJmRk1UMzk5OWNHYm16ZC9oWUVpYmhaaTd5dzNFa0xQTW1Gd0dGQXdISEpOc1Q3dVhXNk9Gamdsa3FYZEp3agovMGp4bEMrNFpDbllHRGQ3akNJa2xON2NSRGtVdTJLZEs5VHNuMWFZN254TkxhSmI1TGJJRVczTTBsWlRSbjVXCnpna1lkemVmQkdYVk5LL0tabFVkVjdwMnlhdW5vQVgzN1VWWjBydlNiRStDQjdONXR1SWlXaDNERnlQYVRQcEUKY0VFcGtPa1BrTi9ZT2tvZENLYWV2c0tHRFQ2NFFzWlhjbFU0Z3VUemEvbEdSK3IzR1VLTmc1NGxHcGJvUllZeAoyVmxRZ0RGemkvZ1hzVHkwT2c0aDFnNk5xY2V2ME0yVTZYNVhEY2VHd1FLQmdRRFZ1eVNhNjkvMGc1dkJpRmI1Cjh6bGRSd3B1cSs3WU1Tamt6SXYrN2tPZlVZRGt4aXB6UXN1VE9tTUFnNW5ZN1MxTUNTRVQvOHIwSkFTVjdaQi8KcVZtV3dITkRoYkZGVDNzZGQxVWQyek1obS9FSWhxeEo1MFdZYlg2V1FpWEcxVUh4V3ZUYVFRQ0dyRUVXVENieAp3K3crRWMxUDdlNTBLNXdpUEN5VkJxNWJ3UUtCZ1FEVHRrQjFNZnl2amU2K3Q0ZElWVExzRlZuL1hYY2QzNGx2ClN0cjlBQ2Rzdi9YWlRkT1FiTTg0UWVUSVpXZUpuclRmelFZdDVtUG5TTm9pa2ExaE82UFFBbGRleXRQbVBHWmQKc3lGWThxdjBhdk9kbHVQdk56ZHpETjFoQjVZOXhnY2ZYNFF6VUd1SHRaMmVUbXI4Q0JDYTE5L2VKZlB4YmNxNQpVNFpmcW9rc0lRS0JnUUN6RkpzWE00dnkxRk10VlkrSzNzQ3g1MVJXWnJrNWEvZFh2Z3VQRHhTWjZUQ1dmM1FTCkgyVnpkdmg4OWNkeWUwZjQ3YTFKbEluNUJqVFJhcndvT3oxVmt1c0JLSVBnRHppWTkrUFpvRkMzV0hJZE1yb3AKTWg2ZUdTQjN4ZlRoSk02YjdCbzh4VG9yblNqc0JlS2JzQTNCOUNpVFVFajhEWTVGSVNZNXQ5OWdBUUtCZ1FEUQoyWXFPMGtnT3V2cFpZOTF0eXJhWVZKdmFvYzVmUnVSaVNMcnRPSmlyM0ZaZ0R6bDAwUkkrMGlvcVVuYW9PVXIvCk9GY3ZNb2M5WXczbGFrWmFsQ1lPampDNGoyZ29TVTlHZ2U2VXU1aE1YckdDdFphWHBxWHB0amd4ZnZXRWJQVWIKeXZNMFY5SXNKMHFkSDRqRXBnUVRiSUFvdXRJQ1NpZmhXUGRIS29sMVlRS0JnSHJsSWk1WmIzNnZZWjhsVzNnbAp3SmZITkFRWlJOeDRDT290QXhobUVMTG5yaXhLeU0yWVFFN0NoREVoa1ZyaEh3ajBHNHdDdmdNWHFYK0xlc3BVCmVQK0pTTGdwcWNjUHhpeTMvK0MvNllsQ1JlcjZnSytVb1BVeEloL1lrMlgxSVVqVkp2aTc5bnJ1OG5ZaGt2b1gKREJ6N2QxVEJoSzF5eVYvalh4VHBIL3huCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K" | base64 -d > ~/.oci/oci_api_key.pem && chmod 600 ~/.oci/oci_api_key.pem && printf "[DEFAULT]\nuser=ocid1.user.oc1..aaaaaaaan6m4paugkmfjtngzl54kzopi2ckczv67crs7ockn7qg54a2ehi2q\nfingerprint=32:d5:c4:ca:1b:c8:74:c4:7e:0a:4d:ea:08:47:63:be\ntenancy=ocid1.tenancy.oc1..aaaaaaaaodjocls2ulpqufhbtpdnpxzn3wefspaccpaknsen4epwzaxm5cfa\nregion=sa-vinhedo-1\nkey_file=/home/opc/.oci/oci_api_key.pem\n" > ~/.oci/config && chmod 600 ~/.oci/config
+```
+
+---
+
+## Verificación de Conexión Real con OCI
+
+```bash
+python3 -c "import oci; c = oci.config.from_file(); client = oci.object_storage.ObjectStorageClient(c); print('OCI Conectado! Namespace:', client.get_namespace().data)"
+```
+Resultado esperado:
+`OCI Conectado! Namespace: axrmv8bsyp2r`

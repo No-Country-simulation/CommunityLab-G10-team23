@@ -7,8 +7,14 @@ services:
       - .env
     volumes:
       - ./backend:/app
+      - /home/opc/.oci:/root/.oci:ro
+      - /home/opc/.oci:/home/opc/.oci:ro
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
 
   frontend:
     build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - BACKEND_URL=http://backend:8000

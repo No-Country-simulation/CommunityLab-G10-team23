@@ -11,7 +11,7 @@ CommunityLab (Grupo 10, Equipo 23) converts community-interaction data (Discord,
 - **Team C** — content generation and human-in-the-loop (HITL) review (`app/content`, `app/api/v1/review.py`).
 - **Team D** — final package assembly and OCI Object Storage persistence (planned; `armar_respuesta_externa` in `app/contracts/models.py` is the only piece implemented so far).
 
-Only the ingestion→analysis→classification→generation chain is wired together end to end (via `app/workflow/pipeline.py` and `POST /api/v1/pipeline/process`). OCI storage, the Streamlit dashboard, and RAG are not implemented — `frontend/app.py` is a placeholder that prints a message and exits.
+Only the ingestion→analysis→classification→generation chain is wired together end to end (via `app/workflow/pipeline.py`, exposed synchronously as `POST /api/v1/pipeline/process` and as background jobs via `POST /api/v1/pipeline/jobs` + `GET /api/v1/pipeline/jobs/{id}?desde=n`, which the frontend uses). OCI storage, the metrics dashboard, and RAG are not implemented. `frontend/` is a Next.js app (HITL review inbox + BFF proxy routes under `src/app/api/`); see `frontend/README.md`. `frontend/app.py` and `frontend/requirements.txt` are leftovers from the old placeholder and are not used by the Node Dockerfile.
 
 Read `docs/Architecture.md` and `docs/DataContract.md` before changing contracts or adding a phase — they describe the agreed module boundaries and the external-vs-internal contract split in more depth than this file.
 
@@ -39,7 +39,8 @@ uvicorn app.main:app --reload
 Docker (from the repo root):
 
 ```bash
-docker compose up --build backend     # start backend on :8000 (frontend is a no-op placeholder)
+docker compose up --build             # backend on :8000 + Next.js frontend on :3000
+docker compose up --build backend     # backend only
 docker compose exec backend python -m pytest -q
 curl http://localhost:8000/health
 ```
@@ -60,7 +61,7 @@ curl http://localhost:8000/health
 | `/api/v1/pipeline` | `app/api/v1/pipeline.py` → `app/workflow/pipeline.py::process_batch` | Full orchestration: Team A analysis → Team B classification graph → Team C generation, per interaction. |
 | `/api/v1/review` | `app/api/v1/review.py` | HITL: list/patch generated asset candidates (`estado_aprobacion`, `contenido`) stored by Team C. |
 
-`process_batch` is the one place that wires A→B→C together. For each interaction it: builds an `InteraccionInterna`, calls `analyze_interaction` (falls back to a neutral `AnalisisInterno` + `degradado=True` on failure), invokes the Team B LangGraph classification graph, and — if routed to content generation — calls `generate_assets` and persists candidates via `upsert_generation_result`. Failures at any stage are captured per-item in an `error` string and do **not** abort the rest of the batch; isolate-failures-per-item is the pattern to preserve when touching this function.
+`iter_batch` is the one place that wires A→B→C together; it yields one `ResultadoPipelineItem` per interaction as soon as it finishes, and `process_batch` just collects it. `app/workflow/jobs.py` runs `iter_batch` in a background thread, keeping jobs in process memory (lost on restart, assumes a single Uvicorn worker) and serializing batches with a lock so interactions are processed one at a time. For each interaction it: builds an `InteraccionInterna`, calls `analyze_interaction` (falls back to a neutral `AnalisisInterno` + `degradado=True` on failure), invokes the Team B LangGraph classification graph, and — if routed to content generation — calls `generate_assets` and persists candidates via `upsert_generation_result`. Failures at any stage are captured per-item in an `error` string and do **not** abort the rest of the batch; isolate-failures-per-item is the pattern to preserve when touching this function.
 
 ### Team B classification graph (`app/workflow/classification_graph.py`)
 
@@ -97,6 +98,6 @@ Follow the existing pattern (per `README.md`):
 
 ## Known gaps (don't assume these are done)
 
-- The ingestion endpoint (`/api/v1/ingest/process`) does **not** run classification or generation — only `/api/v1/pipeline/process` does.
-- No OCI persistence, no Streamlit dashboard, no RAG — these are planned per `docs/CommunityLab - Plan de equipos.md` but not implemented.
+- The ingestion endpoint (`/api/v1/ingest/process`) does **not** run classification or generation — only `/api/v1/pipeline/process` and `/api/v1/pipeline/jobs` do.
+- No OCI persistence, no metrics dashboard, no RAG — these are planned per `docs/CommunityLab - Plan de equipos.md` but not implemented.
 - `.env` must never contain real secrets in commits; `GEMINI_API_KEY` is read from the environment only.

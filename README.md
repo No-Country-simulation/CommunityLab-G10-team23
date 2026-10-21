@@ -2,18 +2,20 @@
 
 MVP para convertir interacciones de comunidades de aprendizaje en análisis estructurados y, como objetivo del proyecto, activos de comunicación revisados por personas. El repositorio está organizado como un **monolito modular**: las fases del pipeline viven como módulos del backend, no como microservicios independientes.
 
-> **Estado actual:** están implementados el servicio FastAPI, el chequeo de salud, los contratos compartidos y el pipeline completo conectado de extremo a extremo: ingesta/análisis con Gemini (Equipo A), clasificación/score/ruteo con un grafo LangGraph (Equipo B) y generación de activos candidatos con revisión humana HITL (Equipo C). La persistencia de candidatos es hoy un archivo JSON local, no el almacenamiento OCI definitivo. El almacenamiento OCI, el dashboard y RAG siguen en el plan del equipo. Consulta [el plan de equipos](docs/CommunityLab%20-%20Plan%20de%20equipos.md) para el alcance acordado.
+> **Estado actual:** están implementados el servicio FastAPI, el chequeo de salud, los contratos compartidos y el pipeline completo conectado de extremo a extremo: ingesta/análisis con Gemini (Equipo A), clasificación/score/ruteo con un grafo LangGraph (Equipo B) y generación de activos candidatos con revisión humana HITL (Equipo C). El frontend en Next.js ofrece la bandeja de revisión HITL y procesa los lotes en segundo plano, fila por fila. La persistencia de candidatos es hoy un archivo JSON local, no el almacenamiento OCI definitivo. El almacenamiento OCI, el dashboard de métricas y RAG siguen en el plan del equipo. Consulta [el plan de equipos](docs/CommunityLab%20-%20Plan%20de%20equipos.md) para el alcance acordado.
 
 ## Inicio rápido con Docker
 
 Requisitos: Docker Desktop con Docker Compose v2.
 
-1. En la raíz del repositorio, prepara un archivo local `.env` con `GEMINI_API_KEY`. Puedes tomar [`.env.example`](.env.example) como referencia. No compartas ni subas credenciales reales.
-2. Construye e inicia el backend:
+1. En la raíz del repositorio, prepara un archivo local `.env` con `GEMINI_API_KEY` y, recomendado, `GEMINI_MODEL=gemini-3.5-flash-lite` (ver la nota de cuota más abajo). Puedes tomar [`.env.example`](.env.example) como referencia. No compartas ni subas credenciales reales.
+2. Construye e inicia el backend y el frontend:
 
 	 ```bash
-	 docker compose up --build backend
+	 docker compose up --build
 	 ```
+
+	 La interfaz de revisión queda en <http://localhost:3000>. Para iniciar solo la API, usa `docker compose up --build backend`.
 
 3. Comprueba el servicio:
 
@@ -22,13 +24,15 @@ Requisitos: Docker Desktop con Docker Compose v2.
 	 ```
 
 	 Debe responder con `status: ok`. La documentación interactiva de la API está en <http://localhost:8000/docs>.
-4. Para detenerlo, usa `Ctrl+C`; para quitar los contenedores, ejecuta `docker compose down`.
+4. Para detenerlo, usa `Ctrl+C` o `docker compose stop`; para quitar los contenedores, ejecuta `docker compose down`. Detener el backend descarta el avance de un lote en proceso (los trabajos viven en memoria).
 
 El backend puede arrancar sin la clave porque el cliente de Gemini se inicializa de forma diferida. Sin una clave válida, el análisis cae en un resultado neutral degradado y la generación de activos usa contenido de respaldo basado en plantillas; para obtener análisis y contenido reales del modelo configura `GEMINI_API_KEY`. `GEMINI_MODEL` es opcional y, si se omite, se usa `gemini-3.8-flash`.
 
-La cuota gratuita de la API de Gemini es de 20 solicitudes/día **por proyecto** (no por API key individual): si varias claves provienen del mismo proyecto de Google AI Studio/Cloud, comparten el mismo límite. Un solo llamado al pipeline completo consume varias solicitudes (análisis + clasificación + generación), así que ese límite se agota rápido en pruebas manuales. Para desarrollo sostenido, habilita billing en el proyecto asociado a la clave o reserva las pruebas contra la API real para verificaciones puntuales; la suite automatizada (`pytest`) no consume cuota porque simula el proveedor.
+La cuota gratuita de la API de Gemini se aplica **por proyecto y por modelo** (no por API key individual) y se reinicia a medianoche, hora del Pacífico: si varias claves provienen del mismo proyecto de Google AI Studio/Cloud, comparten el mismo límite. Cada interacción del pipeline consume entre 3 y 5 solicitudes (análisis + clasificación + generación); con `gemini-3.8-flash`, limitado a 20 solicitudes/día en el plan gratuito, el límite se agota en un solo lote. Se recomienda `GEMINI_MODEL=gemini-3.5-flash-lite`, probado con el pipeline y con una cuota gratuita mayor; los límites exactos de cada proyecto se consultan en <https://ai.dev/rate-limit>. Para desarrollo sostenido, habilita billing en el proyecto asociado a la clave; la suite automatizada (`pytest`) no consume cuota porque simula el proveedor.
 
-El servicio `frontend` de Compose es actualmente un placeholder que solo imprime un mensaje y termina; no es todavía el dashboard Streamlit descrito en el plan.
+El contenedor lee el `.env` solo al crearse: tras cambiar `GEMINI_API_KEY` o `GEMINI_MODEL`, ejecuta `docker compose up -d --force-recreate backend` (`docker compose restart` no basta).
+
+El servicio `frontend` es una aplicación Next.js con la bandeja de revisión HITL; su guía de uso, estructura y solución de problemas están en [frontend/README.md](frontend/README.md).
 
 ## Ejecutar las pruebas
 
@@ -50,7 +54,9 @@ Las pruebas de API y de análisis simulan las llamadas al LLM, por lo que no nec
 | --- | --- | --- |
 | `GET` | `/health` | Estado y entorno del servicio. |
 | `POST` | `/api/v1/ingest/process` | Equipo A solamente: valida un lote y devuelve cada interacción con su análisis. |
-| `POST` | `/api/v1/pipeline/process` | Flujo completo A→B→C: análisis, clasificación/score/ruteo y, si corresponde, generación de activos candidatos. |
+| `POST` | `/api/v1/pipeline/process` | Flujo completo A→B→C: análisis, clasificación/score/ruteo y, si corresponde, generación de activos candidatos. Síncrono: responde al terminar todo el lote. |
+| `POST` | `/api/v1/pipeline/jobs` | Mismo flujo en segundo plano: responde `202` con un `job_id` y procesa una interacción a la vez (un lote a la vez). |
+| `GET` | `/api/v1/pipeline/jobs/{job_id}?desde=n` | Estado del trabajo (`en_cola`, `en_proceso`, `completado`, `fallido`), avance y las interacciones procesadas desde el índice `n`. |
 | `GET` | `/api/v1/review/assets` | Lista los activos candidatos generados y su estado de aprobación (HITL). |
 | `PATCH` | `/api/v1/review/assets/{candidato_id}` | Aprueba, rechaza o edita el contenido de un activo candidato antes de distribuirlo. |
 
@@ -73,7 +79,7 @@ La solicitud de ingesta acepta hasta 500 interacciones y es el mismo payload par
 
 Cada elemento de `interacciones` requiere `autor`, `canal`, `tipo` y `texto` como cadenas. La API genera un `id` y un `timestamp` UTC, y entrega el análisis con `sentimiento`, `sentimiento_score` (de -1 a 1), `temas`, `entidades`, `resumen` e `intencion`. Si el proveedor falla tras el reintento, esa interacción se marca `degradado: true` y el lote continúa. Los datos enviados a esta ruta y su respuesta representan el **contrato interno de ingesta/análisis**; no son todavía el paquete externo final definido para el pipeline completo.
 
-`POST /api/v1/pipeline/process` usa la misma solicitud y además devuelve, por interacción, `oportunidad` (`categoria` y `relevance_score` de 0 a 100), `enrutamiento` (`ruta` y `motivo`), `activos_candidatos` (lista de activos generados con `candidato_id`, `tipo_activo`, `contenido` y `estado_aprobacion: "pendiente"`) y un `error` opcional si alguna fase falló para esa interacción sin interrumpir el resto del lote.
+`POST /api/v1/pipeline/process` y `POST /api/v1/pipeline/jobs` usan la misma solicitud. El primero responde al terminar el lote; el segundo responde de inmediato con un `job_id`, y `GET /api/v1/pipeline/jobs/{job_id}?desde=n` devuelve el avance y las interacciones procesadas desde el índice `n` (los trabajos viven en memoria del backend y se pierden al reiniciarlo). Ambos devuelven, por interacción, `oportunidad` (`categoria` y `relevance_score` de 0 a 100), `enrutamiento` (`ruta` y `motivo`), `activos_candidatos` (lista de activos generados con `candidato_id`, `tipo_activo`, `contenido` y `estado_aprobacion: "pendiente"`) y un `error` opcional si alguna fase falló para esa interacción sin interrumpir el resto del lote.
 
 `GET /api/v1/review/assets` devuelve esa misma lista de candidatos persistidos. `PATCH /api/v1/review/assets/{candidato_id}` acepta `{"estado_aprobacion": "aprobado" | "rechazado" | "pendiente", "contenido": {...}}` (`contenido` es opcional) y responde 404 si el id no existe.
 
@@ -95,7 +101,7 @@ backend/
 	tests/            Pruebas de API, análisis, contratos, intelligence, content y workflow.
 	Dockerfile
 	requirements.txt
-frontend/            Placeholder actual; objetivo futuro: Streamlit/HITL.
+frontend/            Next.js: bandeja de revisión HITL y proxy BFF hacia la API (ver frontend/README.md).
 docs/                Arquitectura, contratos, despliegue y planes por equipo.
 schemas/             Ejemplos JSON de entrada y salida del contrato del proyecto.
 docker-compose.yml   Servicios de desarrollo local.
@@ -127,17 +133,17 @@ El flujo implementado en `POST /api/v1/ingest/process` es:
 
 ## Pipeline completo (Equipos A→B→C)
 
-`POST /api/v1/pipeline/process` (implementado en `app/workflow/pipeline.py::process_batch`) orquesta las tres fases por interacción:
+`app/workflow/pipeline.py::iter_batch` orquesta las tres fases por interacción y entrega cada resultado en cuanto termina. `POST /api/v1/pipeline/process` (`process_batch`) lo recorre completo; `POST /api/v1/pipeline/jobs` lo ejecuta en segundo plano (`app/workflow/jobs.py`), un lote a la vez y una interacción a la vez, que es lo que usa el frontend:
 
 1. **Equipo A** – mismo análisis que el endpoint de ingesta; si falla, usa el resultado neutral degradado y continúa.
 2. **Equipo B** – un grafo de LangGraph (`app/workflow/classification_graph.py`) clasifica el análisis: intenta con un clasificador LLM (hasta 2 intentos), cae a un clasificador determinista por palabras clave/intención si el LLM no responde con confianza ≥ 0.75, calcula un `relevance_score` (0–100) y decide una ruta (`equipo_c.generar_activos`, `equipo_c.revision_prioritaria` o `flujo.descartar`).
-3. **Equipo C** – si la ruta es `equipo_c.generar_activos`, `app/content/generator.py` pide a Gemini los formatos correspondientes a la categoría (post de LinkedIn, destaque de newsletter y/o sugerencia de FAQ) y, si el LLM falla, usa contenido de respaldo por plantilla. Los candidatos se guardan como `pendiente` vía `app/content/repository.py`.
+3. **Equipo C** – si la ruta es `equipo_c.generar_activos`, `app/content/generator.py` pide a Gemini los formatos correspondientes a la categoría (post de LinkedIn, destaque de newsletter y/o sugerencia de FAQ) y, si el LLM falla, usa contenido de respaldo por plantilla. El prompt pide el copy de LinkedIn con estructura de post (gancho, párrafos cortos, llamada a la acción y hashtags) y el resumen del newsletter con formato de noticia, usando solo hechos del análisis. Los candidatos se guardan como `pendiente` vía `app/content/repository.py`.
 
 Un fallo en cualquier fase se registra en el campo `error` de esa interacción sin interrumpir el resto del lote (aislamiento de errores por ítem).
 
 ## Revisión humana (HITL, Equipo C)
 
-Los activos candidatos generados se persisten en `backend/data/activos_candidatos.json` (no versionado, no es el almacenamiento OCI definitivo). `GET /api/v1/review/assets` los lista; `PATCH /api/v1/review/assets/{candidato_id}` permite aprobarlos, rechazarlos o editar su `contenido` antes de la distribución final. Solo los candidatos con `estado_aprobacion: "aprobado"` deben llegar a distribución (ver `armar_respuesta_externa` en `app/contracts/models.py`, que elige el de mayor `relevance_score` por tipo oficial de activo).
+Los activos candidatos generados se persisten en `backend/data/activos_candidatos.json` (no versionado, no es el almacenamiento OCI definitivo). `GET /api/v1/review/assets` los lista; `PATCH /api/v1/review/assets/{candidato_id}` permite aprobarlos, rechazarlos o editar su `contenido` antes de la distribución final. Esta revisión se hace desde la interfaz web en <http://localhost:3000> ([frontend/README.md](frontend/README.md)). Solo los candidatos con `estado_aprobacion: "aprobado"` deben llegar a distribución (ver `armar_respuesta_externa` en `app/contracts/models.py`, que elige el de mayor `relevance_score` por tipo oficial de activo).
 
 ## Contratos y documentación
 

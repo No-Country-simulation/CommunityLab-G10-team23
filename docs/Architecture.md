@@ -28,7 +28,7 @@ El diagrama representa el objetivo del proyecto. Las fases A, B y C ya están co
 | `backend/app/content` | Prompts de generación, selección de formato por categoría y persistencia de candidatos. | Implementado; conectado al pipeline cuando la ruta es `equipo_c.generar_activos`. |
 | Revisión HITL | Listado y aprobación/edición de activos candidatos. | Implementado sobre almacenamiento JSON local (`backend/data/activos_candidatos.json`), vía `/api/v1/review`. |
 | Storage OCI / empaquetado final / RAG | Persistencia definitiva, ensamblado del contrato externo final y recuperación opcional para FAQ. | Definido como objetivo; `armar_respuesta_externa` existe pero no está conectado a un endpoint ni a OCI. |
-| `frontend` | Dashboard y panel HITL. | Placeholder actual; no es todavía una aplicación Streamlit. |
+| `frontend` | Dashboard y panel HITL. | Panel HITL implementado en Next.js (bandeja de revisión con procesamiento fila por fila vía `/api/v1/pipeline/jobs`); el dashboard de métricas sigue pendiente. Ver [frontend/README.md](../frontend/README.md). |
 
 ## Flujo implementado
 
@@ -112,4 +112,4 @@ Cada candidato nace en estado `EstadoAprobacion.pendiente` y requiere aprobació
 
 ## Contenedores de desarrollo
 
-Compose declara un backend en el puerto `8000` y un servicio frontend placeholder. Ingesta, análisis, clasificación y workflow son módulos Python dentro del backend; no requieren contenedores separados. Ver [Deployment.md](Deployment.md) para comandos y límites actuales.
+Compose declara un backend en el puerto `8000` y el frontend Next.js en el puerto `3000`. Ingesta, análisis, clasificación y workflow son módulos Python dentro del backend; no requieren contenedores separados. Ver [Deployment.md](Deployment.md) para comandos y límites actuales.
