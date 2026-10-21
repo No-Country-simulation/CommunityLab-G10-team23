@@ -7,6 +7,7 @@ services:
       - .env
     volumes:
       - ./backend:/app
+      - ~/.oci:/root/.oci:ro
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
 
