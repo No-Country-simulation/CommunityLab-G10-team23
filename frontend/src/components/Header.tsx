@@ -11,9 +11,20 @@ interface HeaderProps {
   onPickFile: () => void;
   onReprocess: () => void;
   onLoadSample: (key: string) => void;
+  onPublishOCI?: () => void;
+  isPublishing?: boolean;
 }
 
-export function Header({ batch, isLoading, progress, onPickFile, onReprocess, onLoadSample }: HeaderProps) {
+export function Header({
+  batch,
+  isLoading,
+  progress,
+  onPickFile,
+  onReprocess,
+  onLoadSample,
+  onPublishOCI,
+  isPublishing = false,
+}: HeaderProps) {
   const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
   const [demoOpen, setDemoOpen] = useState(false);
   const demoRef = useRef<HTMLDivElement>(null);
@@ -76,11 +87,22 @@ export function Header({ batch, isLoading, progress, onPickFile, onReprocess, on
         {batch && (
           <button
             onClick={onReprocess}
-            disabled={isLoading}
+            disabled={isLoading || isPublishing}
             className="text-xs px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 transition flex items-center gap-1.5 disabled:opacity-40 cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
             Reprocesar
+          </button>
+        )}
+        {batch && onPublishOCI && (
+          <button
+            onClick={onPublishOCI}
+            disabled={isLoading || isPublishing}
+            className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-semibold transition flex items-center gap-1.5 disabled:opacity-40 cursor-pointer text-white shadow-sm"
+            title="Publicar paquete consolidado en OCI Object Storage (Equipo D)"
+          >
+            <Upload className={`w-3.5 h-3.5 ${isPublishing ? "animate-spin" : ""}`} />
+            {isPublishing ? "Publicando a OCI…" : "Publicar a OCI"}
           </button>
         )}
         <button

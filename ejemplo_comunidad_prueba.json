@@ -1,0 +1,36 @@
+{
+  "origen_comunidad": "Comunidad_Alura_Latam",
+  "periodo_referencia": "Semana_05_2026",
+  "interacciones": [
+    {
+      "autor": "Valentina Ríos",
+      "canal": "#historias-de-éxito",
+      "tipo": "testimonio",
+      "texto": "¡Comunidad, no puedo contener la emoción! Después de 6 meses de estudiar intensamente en el programa de Inteligencia Artificial y completar el proyecto final del hackathon con LangGraph y Next.js, hoy firmé mi contrato como AI Engineer Junior en una startup fintech internacional. Los simulacros técnicos y las mentorías marcaron toda la diferencia."
+    },
+    {
+      "autor": "Carlos Mendoza",
+      "canal": "#dudas-generativa",
+      "tipo": "pregunta",
+      "texto": "¿Cómo están manejando el control de rate limits y la concurrencia cuando se conectan llamadas de Gemini en producción con FastAPI? He visto que a varios compañeros les sale el error ResourceExhausted cuando varios usuarios consultan en simultáneo. ¿Hay algún patrón recomendado con reintentos exponenciales o colas de tareas?"
+    },
+    {
+      "autor": "David Sotomayor",
+      "canal": "#recursos-y-tips",
+      "tipo": "aporte",
+      "texto": "Acabo de compartir en GitHub una plantilla base con el paso a paso para orquestar agentes con LangGraph, memoria de estado y cómo conectar los endpoints a un frontend moderno. Incluye ejemplos de evaluación y logs claros para depuración. ¡Espero les sirva a quienes están armando su demo final!"
+    },
+    {
+      "autor": "Elena Gómez",
+      "canal": "#agradecimientos",
+      "tipo": "testimonio",
+      "texto": "Quiero agradecer infinitamente a todo el equipo de mentores por la paciencia en las sesiones en vivo de esta semana. Su orientación sobre diseño de arquitecturas limpias me ayudó a destrabar por completo el pipeline de datos que teníamos atascado."
+    },
+    {
+      "autor": "Martín Silva",
+      "canal": "#general",
+      "tipo": "chat",
+      "texto": "Buenas tardes a todos, una consulta rápida: ¿a qué hora abre la cafetería del campus mañana o todas las sesiones del sábado son virtuales?"
+    }
+  ]
+}

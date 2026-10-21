@@ -80,6 +80,7 @@ export default function Home() {
 
   const [detail, setDetail] = useState<{ itemId: string; candidateId?: string } | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [isPublishingOCI, setIsPublishingOCI] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
 
@@ -185,6 +186,35 @@ export default function Home() {
       clearTimeout(timer);
     };
   }, [job?.id, job?.estado]);
+
+  const handlePublishOCI = async () => {
+    if (!solicitud || isPublishingOCI) return;
+    setIsPublishingOCI(true);
+    notify("Publicando paquete consolidado en OCI Object Storage…", "info");
+
+    try {
+      const response = await fetch("/api/storage/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(solicitud),
+      });
+      const json = await response.json().catch(() => null);
+
+      if (!response.ok || !json?.data) {
+        throw new Error(errorDetail(json, `HTTP ${response.status}`));
+      }
+
+      const oci = json.data.almacenamiento_oci;
+      notify(
+        `✅ Guardado en OCI Bucket '${oci.bucket}': ${oci.ruta_objeto}`,
+        "success"
+      );
+    } catch (err: any) {
+      notify(`Error al publicar en OCI: ${err.message}`, "error");
+    } finally {
+      setIsPublishingOCI(false);
+    }
+  };
 
   const handleFile = async (file: File) => {
     try {
@@ -317,6 +347,8 @@ export default function Home() {
           const sample = SAMPLES.find((s) => s.key === key);
           if (sample) cargarLote(sample.data);
         }}
+        onPublishOCI={handlePublishOCI}
+        isPublishing={isPublishingOCI}
       />
       <input
         ref={fileInputRef}
