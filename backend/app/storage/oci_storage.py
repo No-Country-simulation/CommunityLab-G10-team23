@@ -96,23 +96,48 @@ def create_object_storage_client() -> Any:
                 config["key_content"] = key_content
             return oci.object_storage.ObjectStorageClient(config)
 
-        # 2. Intentar archivo de configuración local estándar (~/.oci/config)
-        config_file_path = os.getenv("OCI_CONFIG_FILE", oci.config.DEFAULT_LOCATION)
-        if os.path.exists(os.path.expanduser(config_file_path)):
-            config = oci.config.from_file(file_location=config_file_path)
-            return oci.object_storage.ObjectStorageClient(config)
+        # 2. Intentar archivo de configuración local (~/.oci/config)
+        config_candidates = [
+            os.getenv("OCI_CONFIG_FILE", ""),
+            os.path.expanduser("~/.oci/config"),
+            "/root/.oci/config",
+            "/home/opc/.oci/config",
+        ]
+        for cfg_path in config_candidates:
+            if cfg_path and os.path.exists(cfg_path):
+                try:
+                    config = oci.config.from_file(file_location=cfg_path)
+                    # Si el key_file no existe en esa ruta exacta, buscar en rutas alternas
+                    key_file = config.get("key_file", "")
+                    if key_file and not os.path.exists(key_file):
+                        alt_keys = [
+                            "/root/.oci/oci_api_key.pem",
+                            "/home/opc/.oci/oci_api_key.pem",
+                            os.path.expanduser("~/.oci/oci_api_key.pem"),
+                            str(Path(cfg_path).parent / Path(key_file).name),
+                        ]
+                        for alt in alt_keys:
+                            if os.path.exists(alt):
+                                config["key_file"] = alt
+                                break
+                    print(f"[OCI Storage] Conectado exitosamente a OCI usando {cfg_path} (key={config.get('key_file')})")
+                    return oci.object_storage.ObjectStorageClient(config)
+                except Exception as err:
+                    print(f"[OCI Storage Config Error en {cfg_path}]: {err}")
 
         # 3. Intentar Instance Principals (máquina virtual de OCI con IAM Policy)
         try:
             signer = oci.auth.signers.InstancePrincipalsSecurityTokenSigner()
+            print("[OCI Storage] Conectado exitosamente usando Instance Principals")
             return oci.object_storage.ObjectStorageClient(config={"region": region}, signer=signer)
         except Exception:
             pass
 
-    except Exception:
-        pass
+    except Exception as general_err:
+        print(f"[OCI Storage General Error]: {general_err}")
 
-    # 4. Fallback automático a Mock si no hay credenciales OCI configuradas
+    # 4. Fallback a Mock si no hay credenciales OCI configuradas
+    print("[OCI Storage AVISO] No se detectaron credenciales de OCI válidas. Usando almacenamiento Mock local.")
     return _MockObjectStorageClient()
 
 
@@ -132,12 +157,14 @@ def upload_package(
 
     json_bytes = json.dumps(package_data, ensure_ascii=False, indent=2).encode("utf-8")
 
+    print(f"[OCI Storage] Guardando objeto en OCI: bucket={bucket}, ruta={object_path}")
     client.put_object(
         namespace_name=ns,
         bucket_name=bucket,
         object_name=object_path,
         put_object_body=json_bytes,
     )
+    print(f"[OCI Storage] ¡Objeto guardado exitosamente en OCI: {object_path}!")
 
     return AlmacenamientoOCI(
         bucket=bucket,
