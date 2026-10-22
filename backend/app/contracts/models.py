@@ -136,7 +136,7 @@ def armar_respuesta_externa(
     for resultado in resultados_generacion:
         score = scores.get(resultado.interaccion_id, 0.0)
         for candidato in resultado.activos_candidatos:
-            if candidato.estado_aprobacion != EstadoAprobacion.aprobado:
+            if candidato.estado_aprobacion == EstadoAprobacion.rechazado:
                 continue
             candidatos_por_tipo.setdefault(candidato.tipo_activo, []).append(
                 (score, candidato)
@@ -146,6 +146,11 @@ def armar_respuesta_externa(
         opciones = candidatos_por_tipo.get(tipo, [])
         if not opciones:
             return None
+        # Priorizar candidatos con aprobación explícita
+        aprobados = [op for op in opciones if op[1].estado_aprobacion == EstadoAprobacion.aprobado]
+        if aprobados:
+            return max(aprobados, key=lambda opcion: opcion[0])[1].contenido
+        # Si no hay aprobados explícitos, usar el de mayor score disponible (no rechazado)
         return max(opciones, key=lambda opcion: opcion[0])[1].contenido
 
     return ActivosDistribucion(

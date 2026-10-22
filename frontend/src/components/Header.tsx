@@ -12,6 +12,7 @@ interface HeaderProps {
   onReprocess: () => void;
   onLoadSample: (key: string) => void;
   onPublishOCI?: () => void;
+  onClearBatch?: () => void;
   isPublishing?: boolean;
   viewMode?: "revision" | "historial";
   onViewModeChange?: (mode: "revision" | "historial") => void;
@@ -25,6 +26,7 @@ export function Header({
   onReprocess,
   onLoadSample,
   onPublishOCI,
+  onClearBatch,
   isPublishing = false,
   viewMode = "revision",
   onViewModeChange,
@@ -96,26 +98,24 @@ export function Header({
         </div>
       )}
 
-      {viewMode === "revision" && batch && (
-        <div className="text-xs text-slate-300 flex flex-wrap items-center gap-x-2">
-          <span className="font-semibold text-white">{batch.origen}</span>
-          <span className="text-slate-500">·</span>
-          <span>{batch.periodo}</span>
-          <span className="text-slate-500">·</span>
-          {progress ? (
-            <span className="flex items-center gap-1.5 text-indigo-300 font-medium">
-              <RefreshCw className="w-3 h-3 animate-spin" />
-              Procesando {progress.procesadas} de {progress.total}
-            </span>
-          ) : (
-            <span>
-              {batch.total} {batch.total === 1 ? "interacción" : "interacciones"}
-            </span>
-          )}
+      {viewMode === "revision" && progress && (
+        <div className="text-xs flex items-center gap-1.5 text-indigo-300 font-medium bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700">
+          <RefreshCw className="w-3 h-3 animate-spin" />
+          Procesando {progress.procesadas} de {progress.total}…
         </div>
       )}
 
       <div className="ml-auto flex items-center gap-2 flex-wrap">
+        {viewMode === "revision" && batch && onClearBatch && (
+          <button
+            onClick={onClearBatch}
+            disabled={isLoading || isPublishing}
+            className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-1 disabled:opacity-40 cursor-pointer"
+            title="Limpiar la bandeja actual para cargar otro lote"
+          >
+            Nuevo lote
+          </button>
+        )}
         {viewMode === "revision" && batch && (
           <button
             onClick={onReprocess}

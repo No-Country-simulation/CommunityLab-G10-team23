@@ -245,11 +245,22 @@ export default function Home() {
         `✅ Cambios guardados en OCI Bucket '${oci.bucket}': ${oci.ruta_objeto}`,
         "success"
       );
+      // Redirigir al historial para visualizar de inmediato el paquete guardado
+      setViewMode("historial");
     } catch (err: any) {
       notify(`Error al guardar cambios en OCI: ${err.message}`, "error");
     } finally {
       setIsPublishingOCI(false);
     }
+  };
+
+  const handleClearBatch = () => {
+    setSolicitud(null);
+    setResult(null);
+    setJob(null);
+    setDetail(null);
+    receivedRef.current = 0;
+    notify("Bandeja limpiada. Puedes cargar un nuevo lote.", "info");
   };
 
   const handleFile = async (file: File) => {
@@ -350,6 +361,7 @@ export default function Home() {
           if (sample) cargarLote(sample.data);
         }}
         onPublishOCI={handlePublishOCI}
+        onClearBatch={handleClearBatch}
         isPublishing={isPublishingOCI}
         viewMode={viewMode}
         onViewModeChange={setViewMode}

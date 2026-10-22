@@ -131,11 +131,20 @@ export function isAlert(item: ResultadoPipelineItem): boolean {
   );
 }
 
-// Una interacción sin candidatos (alerta o error de generación) sigue pendiente de atención.
-export function rowStatuses(row: ReviewRow): EstadoAprobacion[] {
-  if (row.candidato) return [row.candidato.estado_aprobacion];
+// Determina el estado primario y único de una fila para evitar que aparezca simultáneamente
+// en 'Pendientes' y 'Aprobados'.
+export function rowPrimaryStatus(row: ReviewRow): EstadoAprobacion {
+  if (row.candidato) return row.candidato.estado_aprobacion;
   const statuses = row.item.activos_candidatos.map((c) => c.estado_aprobacion);
-  return statuses.length > 0 ? statuses : ["pendiente"];
+  if (statuses.length === 0) return "pendiente";
+  if (statuses.includes("aprobado")) return "aprobado";
+  if (statuses.every((s) => s === "rechazado")) return "rechazado";
+  return "pendiente";
+}
+
+// Una fila pertenece a un único estado de revisión.
+export function rowStatuses(row: ReviewRow): EstadoAprobacion[] {
+  return [rowPrimaryStatus(row)];
 }
 
 export function rowsForTab(items: ResultadoPipelineItem[], tab: ReviewTab): ReviewRow[] {

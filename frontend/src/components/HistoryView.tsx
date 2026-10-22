@@ -15,16 +15,12 @@ import {
   FileText,
   HelpCircle,
   TrendingUp,
-  MessageSquare,
-  Sparkles,
-  ExternalLink,
   Table as TableIcon,
   X,
   Eye,
+  Star,
   CheckCircle2,
-  AlertCircle,
-  Hash,
-  Tag,
+  Clock,
 } from "lucide-react";
 
 interface CasoItem {
@@ -103,6 +99,16 @@ interface PackageSummary {
   data?: PackageData;
 }
 
+interface AssetCard {
+  id: string;
+  autor: string;
+  canal: string;
+  score: number;
+  estado: string;
+  isWinner: boolean;
+  contenido: Record<string, any>;
+}
+
 export function HistoryView() {
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>("");
@@ -111,7 +117,8 @@ export function HistoryView() {
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedCase, setCopiedCase] = useState(false);
-  const [activeTab, setActiveTab] = useState<"casos" | "json" | "activos" | "metricas">("casos");
+  const [copiedAssetId, setCopiedAssetId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"casos" | "activos" | "json" | "metricas">("casos");
   const [activeAssetTab, setActiveAssetTab] = useState<"linkedin" | "newsletter" | "faq">("linkedin");
   const [inspectCase, setInspectCase] = useState<CasoItem | null>(null);
 
@@ -127,7 +134,6 @@ export function HistoryView() {
       if (res.ok && Array.isArray(json?.packages)) {
         setPackages(json.packages);
         if (json.packages.length > 0) {
-          // Seleccionar el primer paquete (el más reciente) por default
           const firstPkg = json.packages[0];
           setSelectedPath(firstPkg.ruta_objeto);
           if (firstPkg.data) {
@@ -184,6 +190,12 @@ export function HistoryView() {
     setTimeout(() => setCopiedCase(false), 2000);
   };
 
+  const copyAssetContent = (id: string, text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedAssetId(id);
+    setTimeout(() => setCopiedAssetId(null), 2000);
+  };
+
   const downloadJSON = () => {
     if (!currentPackage) return;
     const blob = new Blob([JSON.stringify(currentPackage, null, 2)], { type: "application/json" });
@@ -199,10 +211,55 @@ export function HistoryView() {
   const packageName = currentPackage?.nombre_paquete || currentSummary?.nombre || "Paquete";
   const casos: CasoItem[] = currentPackage?.casos || [];
   const resumen = currentPackage?.resumen_comunidad;
-  const activos = currentPackage?.activos_distribucion_generados;
-  const linkedin = activos?.post_linkedin;
-  const newsletter = activos?.destaque_newsletter_semanal;
-  const faq = activos?.sugerencia_contenido_faq;
+  const activosOficiales = currentPackage?.activos_distribucion_generados;
+  const winnerLinkedin = activosOficiales?.post_linkedin;
+  const winnerNewsletter = activosOficiales?.destaque_newsletter_semanal;
+  const winnerFaq = activosOficiales?.sugerencia_contenido_faq;
+
+  // Extraer todos los candidatos de cada formato generados en este paquete
+  const getAssetsForType = (tipo: string, winnerContent?: Record<string, any>): AssetCard[] => {
+    const list: AssetCard[] = [];
+    casos.forEach((caso) => {
+      const cands = caso.activos_candidatos || [];
+      cands.forEach((c) => {
+        if (c.tipo_activo === tipo) {
+          const isWinner =
+            winnerContent &&
+            ((tipo === "post_linkedin" && winnerContent.titulo === c.contenido.titulo) ||
+              (tipo === "destaque_newsletter_semanal" && winnerContent.titular === c.contenido.titular) ||
+              (tipo === "sugerencia_contenido_faq" && winnerContent.tema === c.contenido.tema));
+
+          list.push({
+            id: c.candidato_id,
+            autor: caso.interaccion.autor,
+            canal: caso.interaccion.canal,
+            score: caso.oportunidad?.relevance_score ?? 0,
+            estado: c.estado_aprobacion,
+            isWinner: !!isWinner,
+            contenido: c.contenido,
+          });
+        }
+      });
+    });
+
+    if (list.length === 0 && winnerContent) {
+      list.push({
+        id: "winner-fallback",
+        autor: "Oficial OCI",
+        canal: "General",
+        score: 100,
+        estado: "aprobado",
+        isWinner: true,
+        contenido: winnerContent,
+      });
+    }
+
+    return list.sort((a, b) => (b.isWinner ? 1 : 0) - (a.isWinner ? 1 : 0) || b.score - a.score);
+  };
+
+  const linkedinList = getAssetsForType("post_linkedin", winnerLinkedin);
+  const newsletterList = getAssetsForType("destaque_newsletter_semanal", winnerNewsletter);
+  const faqList = getAssetsForType("sugerencia_contenido_faq", winnerFaq);
 
   return (
     <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden h-full">
@@ -324,7 +381,7 @@ export function HistoryView() {
             )}
           </div>
 
-          {/* Selector de Pestañas: Tabla de Casos | JSON Completo | Activos Oficiales | Métricas */}
+          {/* Selector de Pestañas: Tabla de Casos | Activos Oficiales | JSON Completo | Métricas */}
           <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
             <button
               onClick={() => setActiveTab("casos")}
@@ -338,6 +395,17 @@ export function HistoryView() {
               Tabla con cada Caso ({casos.length})
             </button>
             <button
+              onClick={() => setActiveTab("activos")}
+              className={`text-xs px-3 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === "activos"
+                  ? "bg-white text-indigo-700 font-bold shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              Activos Oficiales ({linkedinList.length + newsletterList.length + faqList.length})
+            </button>
+            <button
               onClick={() => setActiveTab("json")}
               className={`text-xs px-3 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === "json"
@@ -347,17 +415,6 @@ export function HistoryView() {
             >
               <FileCode className="w-3.5 h-3.5" />
               JSON Completo OCI
-            </button>
-            <button
-              onClick={() => setActiveTab("activos")}
-              className={`text-xs px-3 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === "activos"
-                  ? "bg-white text-indigo-700 font-bold shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              Activos Oficiales
             </button>
             <button
               onClick={() => setActiveTab("metricas")}
@@ -417,7 +474,7 @@ export function HistoryView() {
                     </p>
                     <button
                       onClick={() => setActiveTab("json")}
-                      className="inline-flex items-center gap-1.5 text-xs text-indigo-600 font-semibold hover:underline mt-2"
+                      className="inline-flex items-center gap-1.5 text-xs text-indigo-600 font-semibold hover:underline mt-2 cursor-pointer"
                     >
                       <FileCode className="w-3.5 h-3.5" />
                       Ver el JSON Completo disponible en OCI
@@ -549,7 +606,273 @@ export function HistoryView() {
               </div>
             )}
 
-            {/* VISTA 2: JSON COMPLETO TAL CUAL SE GUARDA EN OCI */}
+            {/* VISTA 2: ACTIVOS OFICIALES DE MARKETING (LINKEDIN, NEWSLETTER, FAQ) CON TODOS LOS CASOS */}
+            {activeTab === "activos" && (
+              <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
+                <div className="border-b border-slate-200 px-6 pt-4 flex gap-2">
+                  <button
+                    onClick={() => setActiveAssetTab("linkedin")}
+                    className={`text-xs px-3 py-2 border-b-2 font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                      activeAssetTab === "linkedin"
+                        ? "border-indigo-600 text-indigo-600"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    LinkedIn ({linkedinList.length})
+                    {winnerLinkedin && <span className="w-2 h-2 rounded-full bg-emerald-500" title="Activo ganador oficial generado"></span>}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveAssetTab("newsletter")}
+                    className={`text-xs px-3 py-2 border-b-2 font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                      activeAssetTab === "newsletter"
+                        ? "border-indigo-600 text-indigo-600"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    Newsletter Semanal ({newsletterList.length})
+                    {winnerNewsletter && <span className="w-2 h-2 rounded-full bg-emerald-500" title="Activo ganador oficial generado"></span>}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveAssetTab("faq")}
+                    className={`text-xs px-3 py-2 border-b-2 font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                      activeAssetTab === "faq"
+                        ? "border-indigo-600 text-indigo-600"
+                        : "border-transparent text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    Sugerencia FAQ ({faqList.length})
+                    {winnerFaq && <span className="w-2 h-2 rounded-full bg-emerald-500" title="Activo ganador oficial generado"></span>}
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  {/* PESTAÑA LINKEDIN: MUESTRA TODOS LOS CASOS DE LINKEDIN */}
+                  {activeAssetTab === "linkedin" && (
+                    <div className="space-y-6">
+                      {linkedinList.length === 0 ? (
+                        <p className="text-sm text-slate-400 italic">No se generaron candidatos de LinkedIn para este paquete.</p>
+                      ) : (
+                        linkedinList.map((item, idx) => (
+                          <div
+                            key={item.id || idx}
+                            className={`p-5 rounded-xl border transition ${
+                              item.isWinner
+                                ? "bg-indigo-50/30 border-indigo-300 ring-2 ring-indigo-200/50"
+                                : "bg-white border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3 mb-3 border-b border-slate-100 pb-3">
+                              <div className="flex items-center gap-2">
+                                {item.isWinner && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                                    <Star className="w-3 h-3 fill-amber-500 text-amber-600" />
+                                    Destacado Oficial OCI
+                                  </span>
+                                )}
+                                <span className="font-bold text-slate-900 text-xs">
+                                  {item.autor}
+                                </span>
+                                <span className="text-slate-400 text-xs font-mono bg-slate-100 px-1.5 py-0.2 rounded">
+                                  {item.canal}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                    item.estado === "aprobado"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-amber-100 text-amber-800"
+                                  }`}
+                                >
+                                  {item.estado}
+                                </span>
+                                <span className="text-xs font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                                  Score: {item.score.toFixed(0)}
+                                </span>
+                                <button
+                                  onClick={() => copyAssetContent(item.id, `${item.contenido.titulo}\n\n${item.contenido.copy}`)}
+                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                                >
+                                  {copiedAssetId === item.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                  {copiedAssetId === item.id ? "¡Copiado!" : "Copiar"}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between text-xs text-slate-500">
+                                <span>Canal recomendado: <strong>{item.contenido.canal_recomendado || "LinkedIn Oficial"}</strong></span>
+                                {item.contenido.potencial_engagement && (
+                                  <span>Engagement: <strong className="text-indigo-600">{item.contenido.potencial_engagement}</strong></span>
+                                )}
+                              </div>
+                              <h4 className="text-sm font-bold text-slate-900 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                {item.contenido.titulo}
+                              </h4>
+                              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
+                                {item.contenido.copy}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* PESTAÑA NEWSLETTER: MUESTRA TODOS LOS CASOS DE NEWSLETTER */}
+                  {activeAssetTab === "newsletter" && (
+                    <div className="space-y-6">
+                      {newsletterList.length === 0 ? (
+                        <p className="text-sm text-slate-400 italic">No se generaron candidatos de Newsletter para este paquete.</p>
+                      ) : (
+                        newsletterList.map((item, idx) => (
+                          <div
+                            key={item.id || idx}
+                            className={`p-5 rounded-xl border transition ${
+                              item.isWinner
+                                ? "bg-purple-50/30 border-purple-300 ring-2 ring-purple-200/50"
+                                : "bg-white border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3 mb-3 border-b border-slate-100 pb-3">
+                              <div className="flex items-center gap-2">
+                                {item.isWinner && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                                    <Star className="w-3 h-3 fill-amber-500 text-amber-600" />
+                                    Destacado Oficial OCI
+                                  </span>
+                                )}
+                                <span className="font-bold text-slate-900 text-xs">
+                                  {item.autor}
+                                </span>
+                                <span className="text-slate-400 text-xs font-mono bg-slate-100 px-1.5 py-0.2 rounded">
+                                  {item.canal}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                    item.estado === "aprobado"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-amber-100 text-amber-800"
+                                  }`}
+                                >
+                                  {item.estado}
+                                </span>
+                                <span className="text-xs font-mono font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
+                                  Score: {item.score.toFixed(0)}
+                                </span>
+                                <button
+                                  onClick={() => copyAssetContent(item.id, `${item.contenido.titular}\n\n${item.contenido.resumen}`)}
+                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                                >
+                                  {copiedAssetId === item.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                  {copiedAssetId === item.id ? "¡Copiado!" : "Copiar"}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div>
+                                <span className="text-xs font-bold text-purple-800 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full">
+                                  Sección: {item.contenido.seccion || "Comunidad y Novedades"}
+                                </span>
+                              </div>
+                              <h4 className="text-sm font-bold text-slate-900 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                {item.contenido.titular}
+                              </h4>
+                              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
+                                {item.contenido.resumen}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  {/* PESTAÑA FAQ: MUESTRA TODOS LOS CASOS DE FAQ */}
+                  {activeAssetTab === "faq" && (
+                    <div className="space-y-6">
+                      {faqList.length === 0 ? (
+                        <p className="text-sm text-slate-400 italic">No se generaron candidatos de FAQ para este paquete.</p>
+                      ) : (
+                        faqList.map((item, idx) => (
+                          <div
+                            key={item.id || idx}
+                            className={`p-5 rounded-xl border transition ${
+                              item.isWinner
+                                ? "bg-amber-50/30 border-amber-300 ring-2 ring-amber-200/50"
+                                : "bg-white border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3 mb-3 border-b border-slate-100 pb-3">
+                              <div className="flex items-center gap-2">
+                                {item.isWinner && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                                    <Star className="w-3 h-3 fill-amber-500 text-amber-600" />
+                                    Destacado Oficial OCI
+                                  </span>
+                                )}
+                                <span className="font-bold text-slate-900 text-xs">
+                                  {item.autor}
+                                </span>
+                                <span className="text-slate-400 text-xs font-mono bg-slate-100 px-1.5 py-0.2 rounded">
+                                  {item.canal}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                                    item.estado === "aprobado"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : "bg-amber-100 text-amber-800"
+                                  }`}
+                                >
+                                  {item.estado}
+                                </span>
+                                <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                                  Score: {item.score.toFixed(0)}
+                                </span>
+                                <button
+                                  onClick={() => copyAssetContent(item.id, `${item.contenido.tema}\n\n${item.contenido.origen}`)}
+                                  className="inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer"
+                                >
+                                  {copiedAssetId === item.id ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                                  {copiedAssetId === item.id ? "¡Copiado!" : "Copiar"}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between text-xs text-slate-500">
+                                <span>Status: <strong className="text-slate-800">{item.contenido.status || "derivado_a_mentoria"}</strong></span>
+                              </div>
+                              <h4 className="text-sm font-bold text-slate-900 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                                {item.contenido.tema}
+                              </h4>
+                              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
+                                {item.contenido.origen}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* VISTA 3: JSON COMPLETO TAL CUAL SE GUARDA EN OCI */}
             {activeTab === "json" && (
               <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
                 <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
@@ -581,162 +904,6 @@ export function HistoryView() {
                   <pre className="text-slate-100 text-xs font-mono leading-relaxed">
                     {JSON.stringify(currentPackage, null, 2)}
                   </pre>
-                </div>
-              </div>
-            )}
-
-            {/* VISTA 3: ACTIVOS OFICIALES DE MARKETING (LINKEDIN, NEWSLETTER, FAQ) */}
-            {activeTab === "activos" && (
-              <div className="bg-white border border-slate-200 rounded-xl shadow-xs overflow-hidden">
-                <div className="border-b border-slate-200 px-6 pt-4 flex gap-2">
-                  <button
-                    onClick={() => setActiveAssetTab("linkedin")}
-                    className={`text-xs px-3 py-2 border-b-2 font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                      activeAssetTab === "linkedin"
-                        ? "border-indigo-600 text-indigo-600"
-                        : "border-transparent text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    <Share2 className="w-3.5 h-3.5" />
-                    LinkedIn
-                    {linkedin && <span className="w-2 h-2 rounded-full bg-emerald-500"></span>}
-                  </button>
-
-                  <button
-                    onClick={() => setActiveAssetTab("newsletter")}
-                    className={`text-xs px-3 py-2 border-b-2 font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                      activeAssetTab === "newsletter"
-                        ? "border-indigo-600 text-indigo-600"
-                        : "border-transparent text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    Newsletter Semanal
-                    {newsletter && <span className="w-2 h-2 rounded-full bg-emerald-500"></span>}
-                  </button>
-
-                  <button
-                    onClick={() => setActiveAssetTab("faq")}
-                    className={`text-xs px-3 py-2 border-b-2 font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                      activeAssetTab === "faq"
-                        ? "border-indigo-600 text-indigo-600"
-                        : "border-transparent text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    <HelpCircle className="w-3.5 h-3.5" />
-                    Sugerencia FAQ
-                    {faq && <span className="w-2 h-2 rounded-full bg-emerald-500"></span>}
-                  </button>
-                </div>
-
-                <div className="p-6">
-                  {activeAssetTab === "linkedin" && (
-                    <div>
-                      {linkedin ? (
-                        <div className="space-y-4 max-w-2xl">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
-                              Canal: {linkedin.canal_recomendado || "LinkedIn Oficial"}
-                            </span>
-                            <span className="text-xs text-slate-500 font-mono">
-                              Potencial de Engagement: <strong className="text-indigo-600">{linkedin.potencial_engagement}</strong>
-                            </span>
-                          </div>
-
-                          <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                              Título del Post
-                            </label>
-                            <h4 className="text-base font-bold text-slate-900 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                              {linkedin.titulo}
-                            </h4>
-                          </div>
-
-                          <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                              Copy Propuesto para LinkedIn
-                            </label>
-                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
-                              {linkedin.copy}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-400 italic">No se generó post de LinkedIn para este paquete.</p>
-                      )}
-                    </div>
-                  )}
-
-                  {activeAssetTab === "newsletter" && (
-                    <div>
-                      {newsletter ? (
-                        <div className="space-y-4 max-w-2xl">
-                          <div>
-                            <span className="text-xs font-bold text-purple-800 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full">
-                              Sección: {newsletter.seccion}
-                            </span>
-                          </div>
-
-                          <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                              Titular Noticioso
-                            </label>
-                            <h4 className="text-base font-bold text-slate-900 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                              {newsletter.titular}
-                            </h4>
-                          </div>
-
-                          <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                              Resumen / Entradilla
-                            </label>
-                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
-                              {newsletter.resumen}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-400 italic">No se generó destaque de newsletter para este paquete.</p>
-                      )}
-                    </div>
-                  )}
-
-                  {activeAssetTab === "faq" && (
-                    <div>
-                      {faq ? (
-                        <div className="space-y-4 max-w-2xl">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
-                              Sugerencia FAQ
-                            </span>
-                            <span className="text-xs text-slate-500 font-mono">
-                              Status: <strong className="text-slate-800">{faq.status}</strong>
-                            </span>
-                          </div>
-
-                          <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                              Pregunta / Tema Frecuente
-                            </label>
-                            <h4 className="text-base font-bold text-slate-900 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                              {faq.tema}
-                            </h4>
-                          </div>
-
-                          <div>
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                              Origen de la Duda
-                            </label>
-                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
-                              {faq.origen}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-400 italic">No se generó sugerencia de contenido FAQ para este paquete.</p>
-                      )}
-                    </div>
-                  )}
                 </div>
               </div>
             )}
