@@ -10,6 +10,7 @@ from app.storage.oci_storage import (
     download_package,
     get_bucket_name,
     get_namespace,
+    list_published_packages,
 )
 from app.storage.service import publicar_lote_a_oci
 
@@ -32,16 +33,45 @@ def publish_to_oci(request: SolicitudProcesamiento) -> RespuestaProcesamiento:
         ) from error
 
 
-@router.get("/packages/{periodo_referencia}")
+@router.get("/packages")
+def get_all_packages() -> dict[str, Any]:
+    """Lista todos los paquetes de distribución oficiales persistidos en OCI bajo 'activos/'."""
+    try:
+        packages = list_published_packages()
+        return {
+            "status": "ok",
+            "bucket": get_bucket_name(),
+            "namespace": get_namespace(),
+            "total": len(packages),
+            "packages": packages,
+        }
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al listar paquetes en OCI: {error}",
+        ) from error
+
+
+@router.get("/packages/{periodo_referencia:path}")
 def get_published_package(periodo_referencia: str) -> dict[str, Any]:
     """Recupera el paquete JSON almacenado en OCI Object Storage para un periodo dado."""
-    object_path = build_object_path(periodo_referencia)
+    if periodo_referencia.endswith(".json"):
+        object_path = periodo_referencia
+    else:
+        object_path = build_object_path(periodo_referencia)
+
     try:
-        return download_package(object_path)
+        package_content = download_package(object_path)
+        return {
+            "status": "ok",
+            "bucket": get_bucket_name(),
+            "ruta_objeto": object_path,
+            "data": package_content,
+        }
     except FileNotFoundError as error:
         raise HTTPException(
             status_code=404,
-            detail=f"No se encontró ningún paquete en OCI para el periodo '{periodo_referencia}' ({object_path})",
+            detail=f"No se encontró ningún paquete en OCI para '{periodo_referencia}' ({object_path})",
         ) from error
     except Exception as error:
         raise HTTPException(

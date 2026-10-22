@@ -59,6 +59,29 @@ class _MockObjectStorageClient:
 
         return _MockResponse(data)
 
+    def list_objects(self, namespace_name: str, bucket_name: str, prefix: str = "", **kwargs: Any) -> Any:
+        target = self.storage_dir / namespace_name / bucket_name
+        objects = []
+        if target.exists():
+            for f in target.rglob("*.json"):
+                if f.is_file():
+                    rel_name = f.relative_to(target).as_posix()
+                    if rel_name.startswith(prefix):
+                        stat = f.stat()
+                        objects.append(
+                            type(
+                                "MockObjectSummary",
+                                (),
+                                {
+                                    "name": rel_name,
+                                    "size": stat.st_size,
+                                    "time_created": None,
+                                    "md5": None,
+                                },
+                            )()
+                        )
+        return type("MockListResponse", (), {"data": type("DataWrapper", (), {"objects": objects})()})()
+
 
 def create_object_storage_client() -> Any:
     """Inicializa el cliente de OCI Object Storage.
@@ -194,6 +217,53 @@ def download_package(
     return json.loads(raw_content.decode("utf-8"))
 
 
+def list_published_packages(
+    *,
+    bucket_name: str | None = None,
+    namespace: str | None = None,
+    client: Any | None = None,
+) -> list[dict[str, Any]]:
+    """Lista todos los paquetes de distribución persistidos en OCI bajo la ruta 'activos/'."""
+    client = client or create_object_storage_client()
+    bucket = bucket_name or get_bucket_name()
+    ns = namespace or get_namespace()
+
+    packages: list[dict[str, Any]] = []
+    try:
+        response = client.list_objects(
+            namespace_name=ns,
+            bucket_name=bucket,
+            prefix="activos/",
+        )
+        data = response.data if hasattr(response, "data") else response
+        raw_objects = getattr(data, "objects", []) or []
+
+        for obj in raw_objects:
+            name = getattr(obj, "name", "")
+            if name.endswith("paquete-distribucion.json"):
+                parts = name.split("/")
+                periodo = parts[1] if len(parts) >= 3 else name
+                size = getattr(obj, "size", 0)
+                time_created = getattr(obj, "time_created", None)
+                fecha_str = (
+                    time_created.isoformat()
+                    if hasattr(time_created, "isoformat")
+                    else str(time_created or "")
+                )
+
+                packages.append({
+                    "periodo_referencia": periodo,
+                    "ruta_objeto": name,
+                    "tamano_bytes": size,
+                    "fecha_creacion": fecha_str,
+                })
+    except Exception as err:
+        print(f"[OCI Storage list_published_packages Error]: {err}")
+
+    packages.sort(key=lambda p: p["periodo_referencia"], reverse=True)
+    return packages
+
+
 __all__ = [
     "DEFAULT_BUCKET",
     "DEFAULT_NAMESPACE",
@@ -203,4 +273,5 @@ __all__ = [
     "create_object_storage_client",
     "upload_package",
     "download_package",
+    "list_published_packages",
 ]
