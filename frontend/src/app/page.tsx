@@ -258,50 +258,72 @@ export default function Home() {
     }
   };
 
-  const updateCandidateStatus = async (
+  // Revisión humana: el backend reemplaza `contenido`, por eso siempre se envía completo.
+  const saveCandidate = async (
     item: ResultadoPipelineItem,
-    candidate: ActivoCandidato,
-    nuevoEstado: EstadoAprobacion
-  ) => {
-    const candidateId = candidate.candidato_id;
-    if (!candidateId) return;
-    setSavingId(candidateId);
+    candidato: ActivoCandidato,
+    newStatus: EstadoAprobacion,
+    contenido: Record<string, any>
+  ): Promise<boolean> => {
+    setSavingId(candidato.candidato_id);
     try {
-      const res = await fetch(`/api/candidates/${candidateId}/status`, {
+      const res = await fetch(`/api/review/assets/${candidato.candidato_id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado_aprobacion: nuevoEstado }),
+        body: JSON.stringify({ estado_aprobacion: newStatus, contenido }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(errorDetail(json, `HTTP ${res.status}`));
+      if (!res.ok) throw new Error(json?.detail || json?.error || `HTTP ${res.status}`);
 
-      setResult((prev) => {
-        if (!prev) return prev;
-        const nextItems = prev.interacciones_procesadas.map((it) => {
-          if (it.interaccion.id !== item.interaccion.id) return it;
-          return {
-            ...it,
-            activos_candidatos: it.activos_candidatos.map((c) =>
-              c.candidato_id === candidateId ? { ...c, estado_aprobacion: nuevoEstado } : c
-            ),
-          };
-        });
-        return { ...prev, interacciones_procesadas: nextItems };
-      });
-      notify(`Activo marcado como ${nuevoEstado}`, "success");
+      setResult((prev) =>
+        prev && {
+          ...prev,
+          interacciones_procesadas: prev.interacciones_procesadas.map((it) =>
+            it.interaccion.id !== item.interaccion.id
+              ? it
+              : {
+                  ...it,
+                  activos_candidatos: it.activos_candidatos.map((c) =>
+                    c.candidato_id === candidato.candidato_id ? { ...c, estado_aprobacion: newStatus, contenido } : c
+                  ),
+                }
+          ),
+        }
+      );
+
+      const label = FORMATS[candidato.tipo_activo].label;
+      const what =
+        newStatus === candidato.estado_aprobacion
+          ? "guardado"
+          : { aprobado: "aprobado", rechazado: "rechazado", pendiente: "marcado como pendiente" }[newStatus];
+      notify(
+        json?.source === "simulation" ? `${label} ${what} (solo en esta sesión)` : `${label} de ${item.interaccion.autor} ${what}`,
+        "success"
+      );
+      return true;
     } catch (err: any) {
-      notify(`No se pudo actualizar el estado: ${err.message}`, "error");
+      notify(`No se pudo guardar la revisión: ${err.message}`, "error");
+      return false;
     } finally {
       setSavingId(null);
     }
+  };
+
+  const publish = (candidato: ActivoCandidato) => {
+    notify(
+      `Publicación en ${FORMATS[candidato.tipo_activo].channel} simulada: la integración con el canal aún no está disponible`,
+      "info"
+    );
   };
 
   const items = result?.interacciones_procesadas ?? [];
   const inDiscarded = tab === "todos" && showDiscarded;
   const usesStatus = tab !== "alertas" && !inDiscarded;
   const baseRows = inDiscarded ? discardedRows(items) : rowsForTab(items, tab);
-  const statusFiltered = usesStatus ? baseRows.filter((r) => r.estado === status) : baseRows;
-  const visibleRows = search.trim() ? statusFiltered.filter((r) => matchesSearch(r, search)) : statusFiltered;
+  const statusCount = (s: EstadoAprobacion) => baseRows.filter((r) => rowStatuses(r).includes(s)).length;
+  const visibleRows = baseRows.filter(
+    (r) => (!usesStatus || rowStatuses(r).includes(status)) && matchesSearch(r, search)
+  );
 
   const mode: TableMode = inDiscarded || tab === "alertas" ? "motivo" : tab === "todos" ? "todos" : "formato";
   const detailItem = detail && items.find((it) => it.interaccion.id === detail.itemId);
@@ -407,7 +429,7 @@ export default function Home() {
               {usesStatus && (
                 <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="group">
                   {STATUSES.map((s) => {
-                    const count = rowStatuses(baseRows)[s];
+                    const count = statusCount(s);
                     const active = status === s;
                     return (
                       <button
@@ -481,7 +503,7 @@ export default function Home() {
                 mode={mode}
                 savingId={savingId}
                 onOpen={openDetail}
-                onSetStatus={updateCandidateStatus}
+                onSetStatus={(item, c, s) => saveCandidate(item, c, s, c.contenido)}
               />
             ) : (
               <div className="h-64 flex flex-col items-center justify-center gap-2 text-slate-400 text-center">
@@ -498,11 +520,14 @@ export default function Home() {
 
       {detailItem && (
         <InteractionDetailModal
+          key={detailItem.interaccion.id}
           item={detailItem}
           initialCandidateId={detail.candidateId}
           savingId={savingId}
           onClose={() => setDetail(null)}
-          onSetStatus={updateCandidateStatus}
+          onSave={saveCandidate}
+          onPublish={publish}
+          onCopied={() => notify("Contenido copiado al portapapeles", "info")}
         />
       )}
 
