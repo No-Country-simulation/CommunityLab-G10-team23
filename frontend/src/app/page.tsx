@@ -222,13 +222,17 @@ export default function Home() {
   const handlePublishOCI = async () => {
     if (!solicitud || isPublishingOCI) return;
     setIsPublishingOCI(true);
-    notify("Publicando paquete oficial en OCI Object Storage…", "info");
+    notify("Guardando cambios en OCI Object Storage…", "info");
 
     try {
+      const payload = {
+        ...solicitud,
+        items: result?.interacciones_procesadas ?? [],
+      };
       const response = await fetch("/api/storage/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(solicitud),
+        body: JSON.stringify(payload),
       });
       const json = await response.json().catch(() => null);
 
@@ -238,11 +242,11 @@ export default function Home() {
 
       const oci = json.data.almacenamiento_oci;
       notify(
-        `✅ Guardado en OCI Bucket '${oci.bucket}': ${oci.ruta_objeto}`,
+        `✅ Cambios guardados en OCI Bucket '${oci.bucket}': ${oci.ruta_objeto}`,
         "success"
       );
     } catch (err: any) {
-      notify(`Error al publicar en OCI: ${err.message}`, "error");
+      notify(`Error al guardar cambios en OCI: ${err.message}`, "error");
     } finally {
       setIsPublishingOCI(false);
     }

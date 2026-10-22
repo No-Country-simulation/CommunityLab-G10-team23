@@ -260,7 +260,16 @@ def list_published_packages(
     except Exception as err:
         print(f"[OCI Storage list_published_packages Error]: {err}")
 
-    packages.sort(key=lambda p: p["periodo_referencia"], reverse=True)
+    def sort_key(p: dict[str, Any]) -> tuple[int, int, str]:
+        periodo = str(p.get("periodo_referencia", ""))
+        if periodo.startswith("paquete_"):
+            try:
+                return (1, int(periodo.replace("paquete_", "")), "")
+            except ValueError:
+                pass
+        return (0, 0, periodo)
+
+    packages.sort(key=sort_key, reverse=True)
     return packages
 
 

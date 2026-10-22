@@ -131,10 +131,10 @@ export function Header({
             onClick={onPublishOCI}
             disabled={isLoading || isPublishing}
             className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-semibold transition flex items-center gap-1.5 disabled:opacity-40 cursor-pointer text-white shadow-sm"
-            title="Publicar paquete consolidado en OCI Object Storage (Equipo D)"
+            title="Guardar cambios en OCI Object Storage (Equipo D)"
           >
             <Upload className={`w-3.5 h-3.5 ${isPublishing ? "animate-spin" : ""}`} />
-            {isPublishing ? "Publicando a OCI…" : "Publicar en OCI"}
+            {isPublishing ? "Guardando cambios…" : "Guardar cambios"}
           </button>
         )}
         {viewMode === "revision" && (

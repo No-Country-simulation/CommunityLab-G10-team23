@@ -1,6 +1,7 @@
 """Servicio de ensamblado y publicación del paquete final para OCI (Equipo D)."""
 
 from collections import Counter
+from datetime import datetime, timezone
 from typing import Any
 
 from app.contracts.enums import EstadoAprobacion, EstadoRespuesta
@@ -15,7 +16,7 @@ from app.contracts.models import (
     armar_respuesta_externa,
 )
 from app.schemas.internal import ResultadoPipelineItem
-from app.storage.oci_storage import upload_package
+from app.storage.oci_storage import list_published_packages, upload_package
 from app.workflow.pipeline import process_batch
 
 
@@ -67,13 +68,17 @@ def publicar_lote_a_oci(
     *,
     auto_aprobar_para_demo: bool = True,
     client: Any | None = None,
+    items_procesados: list[ResultadoPipelineItem] | None = None,
 ) -> RespuestaProcesamiento:
     """Ejecuta el pipeline completo, ensambla los mejores activos y persiste el
     paquete final en OCI Object Storage cumpliendo el contrato oficial del hackathon.
     """
-    # 1. Ejecutar pipeline A -> B -> C
-    resultado_pipeline = process_batch(request)
-    items = resultado_pipeline.interacciones_procesadas
+    # 1. Obtener o procesar las interacciones
+    if items_procesados and len(items_procesados) > 0:
+        items = items_procesados
+    else:
+        resultado_pipeline = process_batch(request)
+        items = resultado_pipeline.interacciones_procesadas
 
     # 2. Extraer análisis y generación interna para la regla de desempate
     analisis_internos: list[ResultadoAnalisisInterno] = []
@@ -91,9 +96,10 @@ def publicar_lote_a_oci(
             )
 
         candidatos = list(item.activos_candidatos)
-        # En modo demo directa del endpoint oficial, se auto-aprueban los candidatos generados
-        # para que lleguen a la selección final según el relevance_score
-        if auto_aprobar_para_demo:
+        # Si ningún candidato fue aprobado manualmente por el usuario,
+        # se auto-aprueban para demo asegurando que gane el mejor según relevance_score
+        tiene_aprobados = any(c.estado_aprobacion == EstadoAprobacion.aprobado for c in candidatos)
+        if auto_aprobar_para_demo and not tiene_aprobados:
             for c in candidatos:
                 c.estado_aprobacion = EstadoAprobacion.aprobado
 
@@ -112,21 +118,36 @@ def publicar_lote_a_oci(
     # 4. Calcular el resumen de la comunidad
     resumen = calcular_resumen_comunidad(items)
 
-    # 5. Armar el paquete previo a persistencia
+    # 5. Determinar nombre secuencial del paquete ("Paquete 1", "Paquete 2", etc.)
+    try:
+        paquetes_existentes = list_published_packages(client=client)
+        siguiente_numero = len(paquetes_existentes) + 1
+    except Exception:
+        siguiente_numero = 1
+
+    nombre_legible = f"Paquete {siguiente_numero}"
+    clave_objeto = f"paquete_{siguiente_numero}"
+
+    # 6. Armar el paquete previo a persistencia (con JSON completo, resumen y casos)
     paquete_previo = {
         "status": EstadoRespuesta.exito.value,
+        "nombre_paquete": nombre_legible,
+        "periodo_referencia": request.periodo_referencia,
+        "origen_comunidad": request.origen_comunidad,
+        "fecha_guardado": datetime.now(timezone.utc).isoformat(),
         "resumen_comunidad": resumen.model_dump(mode="json"),
         "activos_distribucion_generados": activos_oficiales.model_dump(mode="json", exclude_none=True),
+        "casos": [item.model_dump(mode="json") for item in items],
     }
 
-    # 6. Persistir en OCI Object Storage
+    # 7. Persistir en OCI Object Storage bajo activos/paquete_{N}/paquete-distribucion.json
     almacenamiento: AlmacenamientoOCI = upload_package(
         paquete_previo,
-        periodo_referencia=request.periodo_referencia,
+        periodo_referencia=clave_objeto,
         client=client,
     )
 
-    # 7. Respuesta consolidada final oficial
+    # 8. Respuesta consolidada final oficial
     return RespuestaProcesamiento(
         status=EstadoRespuesta.exito,
         resumen_comunidad=resumen,

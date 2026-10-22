@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from app.contracts.models import RespuestaProcesamiento, SolicitudProcesamiento
+from app.schemas.internal import ResultadoPipelineItem
 from app.storage.oci_storage import (
     build_object_path,
     download_package,
@@ -17,15 +18,19 @@ from app.storage.service import publicar_lote_a_oci
 router = APIRouter()
 
 
+class SolicitudPublicacion(SolicitudProcesamiento):
+    items: list[ResultadoPipelineItem] | None = None
+
+
 @router.post("/publish", response_model=RespuestaProcesamiento)
-def publish_to_oci(request: SolicitudProcesamiento) -> RespuestaProcesamiento:
+def publish_to_oci(request: SolicitudPublicacion) -> RespuestaProcesamiento:
     """Endpoint oficial del Hackathon:
-    Recibe el lote de interacciones, realiza el análisis de IA, selecciona los mejores
-    activos de distribución, persiste el paquete en OCI Object Storage (capa Always Free)
-    y devuelve la salida oficial estructurada exigida por el documento del proyecto.
+    Recibe el lote de interacciones, realiza el análisis de IA (o usa los ítems revisados),
+    selecciona los mejores activos de distribución, persiste el paquete en OCI Object Storage
+    (capa Always Free) y devuelve la salida oficial estructurada exigida por el documento del proyecto.
     """
     try:
-        return publicar_lote_a_oci(request)
+        return publicar_lote_a_oci(request, items_procesados=request.items)
     except Exception as error:
         raise HTTPException(
             status_code=500,
@@ -35,9 +40,37 @@ def publish_to_oci(request: SolicitudProcesamiento) -> RespuestaProcesamiento:
 
 @router.get("/packages")
 def get_all_packages() -> dict[str, Any]:
-    """Lista todos los paquetes de distribución oficiales persistidos en OCI bajo 'activos/'."""
+    """Lista todos los paquetes de distribución oficiales persistidos en OCI bajo 'activos/'.
+    Incluye por default el contenido JSON completo de cada paquete para consulta inmediata.
+    """
     try:
         packages = list_published_packages()
+
+        # Enriquecer cada paquete con nombre secuencial amigable y su JSON completo
+        total_count = len(packages)
+        for idx, pkg in enumerate(packages):
+            ruta = pkg.get("ruta_objeto", "")
+            parts = ruta.split("/")
+            folder = parts[1] if len(parts) >= 3 else ""
+
+            if folder.startswith("paquete_"):
+                num_str = folder.replace("paquete_", "")
+                pkg["nombre"] = f"Paquete {num_str}"
+            else:
+                pkg["nombre"] = f"Paquete {total_count - idx}"
+
+            try:
+                pkg_data = download_package(ruta)
+                pkg["data"] = pkg_data
+                if isinstance(pkg_data, dict):
+                    if "nombre_paquete" in pkg_data:
+                        pkg["nombre"] = pkg_data["nombre_paquete"]
+                    casos = pkg_data.get("casos") or []
+                    pkg["total_casos"] = len(casos) if isinstance(casos, list) else 0
+            except Exception:
+                pkg["data"] = None
+                pkg["total_casos"] = 0
+
         return {
             "status": "ok",
             "bucket": get_bucket_name(),
@@ -54,7 +87,7 @@ def get_all_packages() -> dict[str, Any]:
 
 @router.get("/packages/{periodo_referencia:path}")
 def get_published_package(periodo_referencia: str) -> dict[str, Any]:
-    """Recupera el paquete JSON almacenado en OCI Object Storage para un periodo dado."""
+    """Recupera el paquete JSON almacenado en OCI Object Storage para un periodo o ruta dada."""
     if periodo_referencia.endswith(".json"):
         object_path = periodo_referencia
     else:
