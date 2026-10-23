@@ -27,7 +27,6 @@ import {
   rowStatuses,
   rowsForTab,
 } from "@/lib/review";
-import { SAMPLES } from "@/lib/samples";
 
 type ToastType = "success" | "error" | "info";
 
@@ -221,6 +220,19 @@ export default function Home() {
 
   const handlePublishOCI = async () => {
     if (!solicitud || isPublishingOCI) return;
+
+    const itemsToSave = result?.interacciones_procesadas ?? [];
+    const hasPending = itemsToSave.some((it) =>
+      it.activos_candidatos.some((c) => c.estado_aprobacion === "pendiente")
+    );
+    if (hasPending) {
+      notify(
+        "⚠️ No se puede guardar: aún tienes casos o canales en estado Pendiente. Por favor aprueba o rechaza cada uno antes de guardar.",
+        "error"
+      );
+      return;
+    }
+
     setIsPublishingOCI(true);
     notify("Guardando cambios en OCI Object Storage…", "info");
 
@@ -356,10 +368,6 @@ export default function Home() {
         progress={job && isProcessing ? { procesadas: job.procesadas, total: job.total } : null}
         onPickFile={() => fileInputRef.current?.click()}
         onReprocess={() => solicitud && cargarLote(solicitud)}
-        onLoadSample={(key) => {
-          const sample = SAMPLES.find((s) => s.key === key);
-          if (sample) cargarLote(sample.data);
-        }}
         onPublishOCI={handlePublishOCI}
         onClearBatch={handleClearBatch}
         isPublishing={isPublishingOCI}
@@ -410,38 +418,63 @@ export default function Home() {
         </main>
       ) : (
         <>
-          <nav className="bg-white border-b border-slate-200 px-4 sm:px-6 flex gap-1 overflow-x-auto" role="tablist">
-            {TABS.map((t) => {
-              const count = rowsForTab(items, t.key).length;
-              const selected = tab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  role="tab"
-                  aria-selected={selected}
-                  onClick={() => {
-                    setTab(t.key);
-                    setShowDiscarded(false);
-                  }}
-                  className={`px-3 py-3 text-xs font-semibold border-b-2 -mb-px flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
-                    selected ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  {t.label}
-                  <span
-                    className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
-                      selected ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
+          {/* Encabezado limpio de la Bandeja de Revisión */}
+          <div className="bg-white border-b border-slate-200 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Bandeja de revisión</h2>
+              <p className="text-xs text-slate-500">
+                Evalúa, edita y aprueba las propuestas de contenido generadas por la IA antes de guardarlas en el historial.
+              </p>
+            </div>
+            {solicitud && (
+              <div className="text-xs text-slate-500 flex items-center gap-2">
+                <span className="font-medium text-slate-700">{solicitud.origen_comunidad}</span>
+                <span>·</span>
+                <span className="text-indigo-600 font-semibold">{items.length} interacciones</span>
+              </div>
+            )}
+          </div>
 
-          <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-wrap">
+          {/* Barra de filtros unificada en una sola línea */}
+          <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {/* Canales como botones de filtro / tabs */}
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="tablist">
+                {TABS.map((t) => {
+                  const count = rowsForTab(items, t.key).length;
+                  const selected = tab === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      role="tab"
+                      aria-selected={selected}
+                      onClick={() => {
+                        setTab(t.key);
+                        setShowDiscarded(false);
+                      }}
+                      className={`px-2.5 py-1 text-xs rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                        selected
+                          ? "bg-white text-indigo-700 shadow-xs font-semibold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {t.label}
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          selected ? "bg-indigo-100 text-indigo-700" : "bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Separador vertical sutil */}
+              {usesStatus && <div className="h-5 w-px bg-slate-200" />}
+
+              {/* Filtro por estado de aprobación */}
               {usesStatus && (
                 <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="group">
                   {STATUSES.map((s) => {
@@ -452,7 +485,9 @@ export default function Home() {
                         key={s}
                         onClick={() => setStatus(s)}
                         className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                          active ? "bg-white text-slate-900 shadow-xs font-semibold" : "text-slate-500 hover:text-slate-900"
+                          active
+                            ? "bg-white text-slate-900 shadow-xs font-semibold"
+                            : "text-slate-500 hover:text-slate-900"
                         }`}
                       >
                         {STATUS_PLURAL[s]}
@@ -463,6 +498,7 @@ export default function Home() {
                 </div>
               )}
 
+              {/* Botón de descartadas cuando se está en 'todos' */}
               {tab === "todos" && (
                 <button
                   onClick={() => setShowDiscarded((v) => !v)}
@@ -478,6 +514,7 @@ export default function Home() {
               )}
             </div>
 
+            {/* Buscador */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input

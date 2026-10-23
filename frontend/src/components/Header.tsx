@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { CheckCircle2, AlertCircle, RefreshCw, Upload, FlaskConical, ChevronDown, Cloud, LayoutList } from "lucide-react";
-import { SAMPLES } from "@/lib/samples";
+import React, { useEffect, useState } from "react";
+import { CheckCircle2, AlertCircle, RefreshCw, Upload, Cloud, LayoutList } from "lucide-react";
 
 interface HeaderProps {
   batch: { origen: string; periodo: string; total: number } | null;
@@ -10,7 +9,6 @@ interface HeaderProps {
   progress: { procesadas: number; total: number } | null;
   onPickFile: () => void;
   onReprocess: () => void;
-  onLoadSample: (key: string) => void;
   onPublishOCI?: () => void;
   onClearBatch?: () => void;
   isPublishing?: boolean;
@@ -24,7 +22,6 @@ export function Header({
   progress,
   onPickFile,
   onReprocess,
-  onLoadSample,
   onPublishOCI,
   onClearBatch,
   isPublishing = false,
@@ -32,21 +29,10 @@ export function Header({
   onViewModeChange,
 }: HeaderProps) {
   const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
-  const [demoOpen, setDemoOpen] = useState(false);
-  const demoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     checkHealth();
   }, []);
-
-  useEffect(() => {
-    if (!demoOpen) return;
-    const close = (e: MouseEvent) => {
-      if (!demoRef.current?.contains(e.target as Node)) setDemoOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [demoOpen]);
 
   const checkHealth = async () => {
     try {
@@ -93,7 +79,7 @@ export function Header({
             }`}
           >
             <Cloud className="w-3.5 h-3.5" />
-            Historial OCI Bucket
+            Historial
           </button>
         </div>
       )}
@@ -146,45 +132,6 @@ export function Header({
             <Upload className="w-3.5 h-3.5" />
             Cargar JSON
           </button>
-        )}
-
-        {viewMode === "revision" && (
-          <div ref={demoRef} className="relative">
-            <button
-              onClick={() => setDemoOpen((o) => !o)}
-              disabled={isLoading}
-              className="text-xs px-2.5 py-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition flex items-center gap-1 disabled:opacity-40 cursor-pointer"
-              aria-haspopup="menu"
-              aria-expanded={demoOpen}
-            >
-              <FlaskConical className="w-3.5 h-3.5" />
-              Datos de prueba
-              <ChevronDown className="w-3 h-3" />
-            </button>
-            {demoOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 mt-1 w-52 bg-white text-slate-700 rounded-lg shadow-xl ring-1 ring-slate-200 py-1 z-30"
-              >
-                {SAMPLES.map((s) => (
-                  <button
-                    key={s.key}
-                    role="menuitem"
-                    onClick={() => {
-                      setDemoOpen(false);
-                      onLoadSample(s.key);
-                    }}
-                    className="w-full text-left text-xs px-3 py-2 hover:bg-slate-100 cursor-pointer"
-                  >
-                    {s.label}
-                    <span className="block text-[11px] text-slate-400">
-                      {s.data.interacciones.length} interacciones
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         )}
 
         <button

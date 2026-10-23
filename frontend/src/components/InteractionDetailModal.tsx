@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, Check, Clock, Copy, Save, Send, AlertTriangle, Ban } from "lucide-react";
+import { X, Check, Clock, Copy, AlertTriangle, Ban } from "lucide-react";
 import { ActivoCandidato, EstadoAprobacion, ResultadoPipelineItem } from "@/types/backend";
 import { CATEGORY_LABELS, FORMATS, copyText, fieldText, isAlert, isDiscarded } from "@/lib/review";
 import { StatusBadge } from "./ReviewTable";
@@ -17,7 +17,7 @@ interface InteractionDetailModalProps {
     status: EstadoAprobacion,
     contenido: Record<string, any>
   ) => Promise<boolean>;
-  onPublish: (candidato: ActivoCandidato) => void;
+  onPublish?: (candidato: ActivoCandidato) => void;
   onCopied: () => void;
 }
 
@@ -266,11 +266,6 @@ export function InteractionDetailModal({
         {active && (
           <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-t border-slate-200 bg-white">
             <FooterButton onClick={() => copy(active)} icon={<Copy className="w-4 h-4" />} label="Copiar" />
-            <PublishButton
-              channel={FORMATS[active.tipo_activo].channel}
-              enabled={active.estado_aprobacion === "aprobado" && !dirty}
-              onClick={() => onPublish(active)}
-            />
 
             <div className="ml-auto flex flex-wrap gap-2">
               {active.estado_aprobacion !== "rechazado" && (
@@ -290,12 +285,6 @@ export function InteractionDetailModal({
                   label="Marcar pendiente"
                 />
               )}
-              <FooterButton
-                onClick={() => save(active, active.estado_aprobacion)}
-                disabled={saving || !dirty}
-                icon={<Save className="w-4 h-4" />}
-                label="Guardar"
-              />
               {active.estado_aprobacion !== "aprobado" && (
                 <FooterButton
                   onClick={() => save(active, "aprobado")}
@@ -393,19 +382,5 @@ function FooterButton({
       {icon}
       {label}
     </button>
-  );
-}
-
-function PublishButton({ channel, enabled, onClick }: { channel: string; enabled: boolean; onClick: () => void }) {
-  return (
-    <span title={enabled ? undefined : "Aprueba y guarda el contenido para habilitar la publicación"}>
-      <FooterButton
-        onClick={onClick}
-        disabled={!enabled}
-        icon={<Send className="w-4 h-4" />}
-        label={`Publicar en ${channel}`}
-        className="text-indigo-700 border-indigo-200 hover:bg-indigo-50"
-      />
-    </span>
   );
 }
