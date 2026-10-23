@@ -96,10 +96,10 @@ def publicar_lote_a_oci(
             )
 
         candidatos = list(item.activos_candidatos)
-        # Si ningún candidato fue aprobado manualmente por el usuario,
-        # se auto-aprueban para demo asegurando que gane el mejor según relevance_score
-        tiene_aprobados = any(c.estado_aprobacion == EstadoAprobacion.aprobado for c in candidatos)
-        if auto_aprobar_para_demo and not tiene_aprobados:
+        # Si se procesa directamente vía API sin revisión previa en UI,
+        # se auto-aprueban para demo asegurando que gane el mejor según relevance_score.
+        # Si ya vienen de revisión manual (items_procesados), se respeta estrictamente la decisión del usuario.
+        if not items_procesados and auto_aprobar_para_demo:
             for c in candidatos:
                 c.estado_aprobacion = EstadoAprobacion.aprobado
 

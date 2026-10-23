@@ -146,12 +146,11 @@ def armar_respuesta_externa(
         opciones = candidatos_por_tipo.get(tipo, [])
         if not opciones:
             return None
-        # Priorizar candidatos con aprobación explícita
+        # Solo asignar activo oficial de distribución si fue aprobado explícitamente
         aprobados = [op for op in opciones if op[1].estado_aprobacion == EstadoAprobacion.aprobado]
         if aprobados:
             return max(aprobados, key=lambda opcion: opcion[0])[1].contenido
-        # Si no hay aprobados explícitos, usar el de mayor score disponible (no rechazado)
-        return max(opciones, key=lambda opcion: opcion[0])[1].contenido
+        return None
 
     return ActivosDistribucion(
         post_linkedin=ganador(TipoActivoOficial.post_linkedin),
