@@ -1,0 +1,66 @@
+{
+  "origen_comunidad": "Discord",
+  "periodo_referencia": "2026-W43",
+  "interacciones": [
+    {
+      "autor": "Elena",
+      "canal": "#preguntas",
+      "tipo": "pregunta",
+      "texto": "¿Cómo puedo compartir una dependencia entre varios routers de FastAPI sin crear una instancia nueva en cada solicitud?"
+    },
+    {
+      "autor": "Javier",
+      "canal": "#proyectos",
+      "tipo": "logro",
+      "texto": "Nuestro grupo terminó una aplicación sencilla para organizar sesiones de estudio. La probamos con cinco compañeros y sus comentarios nos permitieron simplificar el flujo de registro."
+    },
+    {
+      "autor": "Paula",
+      "canal": "#recursos",
+      "tipo": "recomendacion",
+      "texto": "Para quienes empiezan con control de versiones, practicar ramas pequeñas y solicitudes de cambios cortas hizo que colaborar con el equipo fuera menos confuso."
+    },
+    {
+      "autor": "Hugo",
+      "canal": "#ayuda",
+      "tipo": "bloqueo",
+      "texto": "Una prueba pasa en mi máquina, pero falla en integración continua al leer un archivo local. ¿Cómo debería configurar la ruta para que no dependa del directorio desde el que se ejecuta pytest?"
+    },
+    {
+      "autor": "Renata",
+      "canal": "#proyectos",
+      "tipo": "comentario",
+      "texto": "Añadimos ejemplos de solicitudes válidas a la documentación y ahora es mucho más fácil probar el endpoint sin preguntarle a otra persona por el formato."
+    },
+    {
+      "autor": "Tomas",
+      "canal": "#preguntas",
+      "tipo": "pregunta",
+      "texto": "¿Conviene guardar los timestamps en UTC desde el momento de la ingesta? Queremos mostrar la hora local en la interfaz, pero conservar un valor consistente en la API."
+    },
+    {
+      "autor": "Daniela",
+      "canal": "#proyectos",
+      "tipo": "logro",
+      "texto": "Repartimos el trabajo en entregas semanales y conseguimos integrar las contribuciones antes de la demostración. Tener contratos compartidos evitó varios desacuerdos sobre los nombres de los campos."
+    },
+    {
+      "autor": "Marco",
+      "canal": "#ayuda",
+      "tipo": "pregunta",
+      "texto": "¿Cuál es una forma clara de representar errores de validación para que el cliente pueda identificar el campo que necesita corregir?"
+    },
+    {
+      "autor": "Irene",
+      "canal": "#general",
+      "tipo": "comentario",
+      "texto": "Me gustó que la última sesión dejara tiempo para que cada equipo compartiera un avance concreto y pidiera comentarios específicos."
+    },
+    {
+      "autor": "Pablo",
+      "canal": "#general",
+      "tipo": "comentario",
+      "texto": "El autobús de la ruta central llegó con diez minutos de retraso esta mañana."
+    }
+  ]
+}

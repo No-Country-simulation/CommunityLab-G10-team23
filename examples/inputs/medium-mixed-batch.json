@@ -1,0 +1,42 @@
+{
+  "origen_comunidad": "Discord",
+  "periodo_referencia": "2026-W43",
+  "interacciones": [
+    {
+      "autor": "Sofia",
+      "canal": "#preguntas",
+      "tipo": "pregunta",
+      "texto": "¿Qué diferencia práctica hay entre una prueba unitaria y una prueba de integración en una API?"
+    },
+    {
+      "autor": "Mateo",
+      "canal": "#proyectos",
+      "tipo": "logro",
+      "texto": "Publicamos nuestra primera versión del tablero de seguimiento. Empezamos con una sola vista, recogimos comentarios del equipo y priorizamos los cambios más repetidos."
+    },
+    {
+      "autor": "Valentina",
+      "canal": "#recursos",
+      "tipo": "recomendacion",
+      "texto": "La guía oficial de pytest sobre fixtures me ayudó a reutilizar datos de prueba sin duplicar la configuración en cada caso."
+    },
+    {
+      "autor": "Andres",
+      "canal": "#ayuda",
+      "tipo": "bloqueo",
+      "texto": "Mi endpoint devuelve 422 aunque el JSON parece correcto. ¿Qué pasos recomiendan para localizar qué campo no está pasando la validación?"
+    },
+    {
+      "autor": "Camila",
+      "canal": "#general",
+      "tipo": "comentario",
+      "texto": "La sesión de revisión por parejas me sirvió para entender mejor cómo organizar los módulos y explicar las decisiones del código."
+    },
+    {
+      "autor": "Nicolas",
+      "canal": "#general",
+      "tipo": "comentario",
+      "texto": "¿Qué música ponen normalmente mientras trabajan? Estoy buscando algo nuevo para escuchar."
+    }
+  ]
+}

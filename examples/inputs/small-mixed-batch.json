@@ -1,0 +1,24 @@
+{
+  "origen_comunidad": "Discord",
+  "periodo_referencia": "2026-W43",
+  "interacciones": [
+    {
+      "autor": "Mariana",
+      "canal": "#preguntas",
+      "tipo": "pregunta",
+      "texto": "¿Cómo puedo validar los datos de una solicitud con Pydantic antes de procesarla en FastAPI?"
+    },
+    {
+      "autor": "Diego",
+      "canal": "#proyectos",
+      "tipo": "logro",
+      "texto": "Después de dividir el proyecto en tareas pequeñas, terminamos el prototipo y pudimos probarlo con otras personas del grupo. La revisión temprana nos ayudó a encontrar varios errores antes de la entrega."
+    },
+    {
+      "autor": "Lucia",
+      "canal": "#general",
+      "tipo": "comentario",
+      "texto": "¿Alguien recomienda una buena receta para preparar pan de plátano este fin de semana?"
+    }
+  ]
+}
