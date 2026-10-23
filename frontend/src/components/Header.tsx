@@ -10,7 +10,6 @@ interface HeaderProps {
   onPickFile: () => void;
   onReprocess: () => void;
   onPublishOCI?: () => void;
-  onClearBatch?: () => void;
   isPublishing?: boolean;
   viewMode?: "revision" | "historial";
   onViewModeChange?: (mode: "revision" | "historial") => void;
@@ -23,7 +22,6 @@ export function Header({
   onPickFile,
   onReprocess,
   onPublishOCI,
-  onClearBatch,
   isPublishing = false,
   viewMode = "revision",
   onViewModeChange,
@@ -48,9 +46,11 @@ export function Header({
   return (
     <header className="bg-slate-900 text-white px-4 sm:px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-3">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center font-black text-sm tracking-tighter">
-          CL
-        </div>
+        <img
+          src="/logo.jpg"
+          alt="Community Lab"
+          className="w-9 h-9 rounded-xl object-cover shadow-xs border border-slate-700/60"
+        />
         <div className="leading-tight">
           <h1 className="text-base font-bold tracking-tight">Community Lab</h1>
         </div>
@@ -92,16 +92,6 @@ export function Header({
       )}
 
       <div className="ml-auto flex items-center gap-2 flex-wrap">
-        {viewMode === "revision" && batch && onClearBatch && (
-          <button
-            onClick={onClearBatch}
-            disabled={isLoading || isPublishing}
-            className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 hover:text-white transition flex items-center gap-1 disabled:opacity-40 cursor-pointer"
-            title="Limpiar la bandeja actual para cargar otro lote"
-          >
-            Nuevo lote
-          </button>
-        )}
         {viewMode === "revision" && batch && (
           <button
             onClick={onReprocess}

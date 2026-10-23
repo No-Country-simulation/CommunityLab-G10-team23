@@ -266,15 +266,6 @@ export default function Home() {
     }
   };
 
-  const handleClearBatch = () => {
-    setSolicitud(null);
-    setResult(null);
-    setJob(null);
-    setDetail(null);
-    receivedRef.current = 0;
-    notify("Bandeja limpiada. Puedes cargar un nuevo lote.", "info");
-  };
-
   const handleFile = async (file: File) => {
     try {
       const text = await file.text();
@@ -345,11 +336,14 @@ export default function Home() {
 
   const items = result?.interacciones_procesadas ?? [];
   const inDiscarded = tab === "todos" && showDiscarded;
-  const usesStatus = tab !== "alertas" && !inDiscarded;
   const baseRows = inDiscarded ? discardedRows(items) : rowsForTab(items, tab);
-  const statusCount = (s: EstadoAprobacion) => baseRows.filter((r) => rowStatuses(r).includes(s)).length;
+  const statusCount = (s: EstadoAprobacion) =>
+    tab === "alertas"
+      ? (s === "pendiente" ? baseRows.length : 0)
+      : baseRows.filter((r) => rowStatuses(r).includes(s)).length;
+  const isFilteredByStatus = tab !== "alertas" && !inDiscarded;
   const visibleRows = baseRows.filter(
-    (r) => (!usesStatus || rowStatuses(r).includes(status)) && matchesSearch(r, search)
+    (r) => (!isFilteredByStatus || rowStatuses(r).includes(status)) && matchesSearch(r, search)
   );
 
   const mode: TableMode = inDiscarded || tab === "alertas" ? "motivo" : tab === "todos" ? "todos" : "formato";
@@ -369,7 +363,6 @@ export default function Home() {
         onPickFile={() => fileInputRef.current?.click()}
         onReprocess={() => solicitud && cargarLote(solicitud)}
         onPublishOCI={handlePublishOCI}
-        onClearBatch={handleClearBatch}
         isPublishing={isPublishingOCI}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
@@ -472,31 +465,29 @@ export default function Home() {
               </div>
 
               {/* Separador vertical sutil */}
-              {usesStatus && <div className="h-5 w-px bg-slate-200" />}
+              <div className="h-5 w-px bg-slate-200" />
 
-              {/* Filtro por estado de aprobación */}
-              {usesStatus && (
-                <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="group">
-                  {STATUSES.map((s) => {
-                    const count = statusCount(s);
-                    const active = status === s;
-                    return (
-                      <button
-                        key={s}
-                        onClick={() => setStatus(s)}
-                        className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                          active
-                            ? "bg-white text-slate-900 shadow-xs font-semibold"
-                            : "text-slate-500 hover:text-slate-900"
-                        }`}
-                      >
-                        {STATUS_PLURAL[s]}
-                        <span className="text-[11px] text-slate-400 font-normal">({count})</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {/* Filtro por estado de aprobación (siempre visible para evitar contracciones) */}
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="group">
+                {STATUSES.map((s) => {
+                  const count = statusCount(s);
+                  const active = status === s;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setStatus(s)}
+                      className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                        active
+                          ? "bg-white text-slate-900 shadow-xs font-semibold"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      {STATUS_PLURAL[s]}
+                      <span className="text-[11px] text-slate-400 font-normal">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
 
               {/* Botón de descartadas cuando se está en 'todos' */}
               {tab === "todos" && (
