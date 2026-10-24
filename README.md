@@ -1,159 +1,207 @@
 # CommunityLab · Grupo 10 · Equipo 23
 
-MVP para convertir interacciones de comunidades de aprendizaje en análisis estructurados y, como objetivo del proyecto, activos de comunicación revisados por personas. El repositorio está organizado como un **monolito modular**: las fases del pipeline viven como módulos del backend, no como microservicios independientes.
+CommunityLab convierte las conversaciones de una comunidad de aprendizaje (Discord, CSV, formularios, GitHub) en **activos de comunicación listos para publicar**: posts de LinkedIn, destacados para el newsletter semanal y sugerencias de FAQ. Agentes con LLM (Google Gemini) analizan, clasifican y redactan; una persona revisa y aprueba cada pieza, y el paquete final se guarda en **OCI Object Storage**.
 
-> **Estado actual:** están implementados el servicio FastAPI, el chequeo de salud, los contratos compartidos y el pipeline completo conectado de extremo a extremo: ingesta/análisis con Gemini (Equipo A), clasificación/score/ruteo con un grafo LangGraph (Equipo B) y generación de activos candidatos con revisión humana HITL (Equipo C). El frontend en Next.js ofrece la bandeja de revisión HITL y procesa los lotes en segundo plano, fila por fila. La persistencia de candidatos es hoy un archivo JSON local, no el almacenamiento OCI definitivo. El almacenamiento OCI, el dashboard de métricas y RAG siguen en el plan del equipo. Consulta [el plan de equipos](docs/CommunityLab%20-%20Plan%20de%20equipos.md) para el alcance acordado.
+**Demo en vivo (OCI Always Free)**
 
-## Inicio rápido con Docker
+| Servicio | URL |
+| --- | --- |
+| Aplicación web (bandeja de revisión, historial y dashboard) | <http://138.2.245.128:3000/> |
+| API y documentación interactiva (Swagger) | <http://164.152.246.126:8000/docs> |
 
-Requisitos: Docker Desktop con Docker Compose v2.
+---
 
-1. En la raíz del repositorio, prepara un archivo local `.env` con `GEMINI_API_KEY` y, recomendado, `GEMINI_MODEL=gemini-3.5-flash-lite` (ver la nota de cuota más abajo). Puedes tomar [`.env.example`](.env.example) como referencia. No compartas ni subas credenciales reales.
-2. Construye e inicia el backend y el frontend:
+## Pipeline completo
 
-	 ```bash
-	 docker compose up --build
-	 ```
+![Pipeline completo de CommunityLab](docs/diagram.svg)
 
-	 La interfaz de revisión queda en <http://localhost:3000>. Para iniciar solo la API, usa `docker compose up --build backend`.
+> Diagrama BPMN editable: [docs/FlujoCommunityLab.bpmn](docs/FlujoCommunityLab.bpmn) (se abre en <https://demo.bpmn.io> o Camunda Modeler).
+> En el diagrama, **✦ LLM** marca las decisiones que toma un modelo, ⚙ las tareas de sistema, 📋 las reglas deterministas y 👤 las decisiones humanas.
 
-3. Comprueba el servicio:
+1. **Carga del lote.** El Community Manager sube un JSON (hasta 500 interacciones). El backend crea un trabajo en segundo plano (`en_cola` → `en_proceso` → `completado` / `fallido`) y la interfaz consulta su avance cada 2 s, mostrando cada interacción apenas termina.
+2. **Procesamiento por interacción**, una a la vez, con una pausa de 3 s entre interacciones para respetar la cuota de Gemini. Si Gemini responde 429, se espera 4.5 s y se reintenta una vez.
+   - **Equipo A · ✦ Agente Analista:** extrae sentimiento (-1 a 1), temas, entidades, resumen e intención. Si falla, usa un análisis neutral marcado `degradado` y el flujo continúa. El campo `tipo` de la fuente nunca se usa para clasificar.
+   - **Equipo B · ✦ Agente Clasificador (LangGraph):** propone una categoría con su confianza. Si no responde tras 2 intentos, o si su confianza es menor a **0.75**, se usa la categoría del clasificador por reglas. Luego calcula el `relevance_score` (0–100) y decide la ruta: generar activos, alerta de soporte o descartar.
+   - **Equipo C · ✦ Agente Redactor:** según la categoría elige los formatos (éxito, testimonio o post social → LinkedIn + Newsletter; FAQ o contenido educativo → FAQ + LinkedIn) y los redacta usando solo hechos del análisis. Si el LLM falla, usa plantillas. Todo candidato nace `pendiente`.
+3. **Revisión humana (HITL).** Cada candidato se aprueba, se edita y aprueba, o se rechaza. "Guardar cambios" queda bloqueado mientras quede alguno `pendiente`.
+4. **Equipo D · Publicación.** Por cada formato oficial gana el candidato **aprobado** con mayor `relevance_score`. Se calcula el resumen de la comunidad y el paquete se guarda en OCI como `activos/paquete_{N}/paquete-distribucion.json`.
+5. **Historial y dashboard.** La interfaz lista los paquetes guardados, muestra 4 KPIs y 4 gráficas (sentimiento, activos por canal, temas y relevancia) y permite inspeccionar cada caso en modo de solo lectura.
 
-	 ```bash
-	 curl http://localhost:8000/health
-	 ```
+Un error en cualquier fase queda registrado en el campo `error` de esa interacción y **no detiene el resto del lote**.
 
-	 Debe responder con `status: ok`. La documentación interactiva de la API está en <http://localhost:8000/docs>.
-4. Para detenerlo, usa `Ctrl+C` o `docker compose stop`; para quitar los contenedores, ejecuta `docker compose down`. Detener el backend descarta el avance de un lote en proceso (los trabajos viven en memoria).
+## Arquitectura y stack
 
-El backend puede arrancar sin la clave porque el cliente de Gemini se inicializa de forma diferida. Sin una clave válida, el análisis cae en un resultado neutral degradado y la generación de activos usa contenido de respaldo basado en plantillas; para obtener análisis y contenido reales del modelo configura `GEMINI_API_KEY`. `GEMINI_MODEL` es opcional y, si se omite, se usa `gemini-3.8-flash`.
+Monolito modular: las fases del pipeline son módulos de un único backend, no microservicios.
 
-La cuota gratuita de la API de Gemini se aplica **por proyecto y por modelo** (no por API key individual) y se reinicia a medianoche, hora del Pacífico: si varias claves provienen del mismo proyecto de Google AI Studio/Cloud, comparten el mismo límite. Cada interacción del pipeline consume entre 3 y 5 solicitudes (análisis + clasificación + generación); con `gemini-3.8-flash`, limitado a 20 solicitudes/día en el plan gratuito, el límite se agota en un solo lote. Se recomienda `GEMINI_MODEL=gemini-3.5-flash-lite`, probado con el pipeline y con una cuota gratuita mayor; los límites exactos de cada proyecto se consultan en <https://ai.dev/rate-limit>. Para desarrollo sostenido, habilita billing en el proyecto asociado a la clave; la suite automatizada (`pytest`) no consume cuota porque simula el proveedor.
+| Capa | Tecnología |
+| --- | --- |
+| Frontend | Next.js 15 (bandeja HITL, historial, dashboard) con rutas BFF `/api/*` que actúan de proxy hacia la API |
+| Backend | FastAPI + Pydantic v2, LangChain + LangGraph |
+| LLM | Google Gemini vía `langchain-google-genai` (recomendado `gemini-3.5-flash-lite`) |
+| Persistencia | OCI Object Storage (paquetes finales); JSON local para candidatos en revisión |
+| Infraestructura | Docker Compose; 2 VMs `VM.Standard.E2.1.Micro` de OCI Always Free (región `sa-vinhedo-1`) |
 
-El contenedor lee el `.env` solo al crearse: tras cambiar `GEMINI_API_KEY` o `GEMINI_MODEL`, ejecuta `docker compose up -d --force-recreate backend` (`docker compose restart` no basta).
+## Inicio rápido (local)
 
-El servicio `frontend` es una aplicación Next.js con la bandeja de revisión HITL; su guía de uso, estructura y solución de problemas están en [frontend/README.md](frontend/README.md).
+Requisitos: Docker Desktop con Docker Compose v2 y una clave de Gemini.
 
-## Ejecutar las pruebas
+```bash
+cp .env.example .env          # completa GEMINI_API_KEY
+docker compose up --build     # backend en :8000 y frontend en :3000
+```
 
-Con Python 3.12 recomendado, instala las dependencias desde `backend` y ejecuta la suite:
+- Aplicación: <http://localhost:3000> · API: <http://localhost:8000/docs> · Salud: `curl http://localhost:8000/health`
+- **Sin credenciales de OCI** el backend usa un almacenamiento local equivalente (`backend/data/oci_mock/`), así que guardar paquetes e historial funcionan igual en desarrollo.
+- **Sin `GEMINI_API_KEY`** la API arranca, pero los lotes terminan en `fallido`.
+- El `.env` se lee al crear el contenedor: después de cambiarlo, ejecuta `docker compose up -d --force-recreate backend`.
+- **Cuota de Gemini:** el límite gratuito es por proyecto y por modelo, y cada interacción consume de 3 a 5 solicitudes. Usa `GEMINI_MODEL=gemini-3.5-flash-lite` y consulta tus límites en <https://ai.dev/rate-limit>.
+
+## Guía de despliegue en OCI
+
+Arquitectura de dos capas: una VM para el frontend (puerto 3000), otra para el backend (puerto 8000) y un bucket de Object Storage.
+
+### 1. Preparar OCI (una sola vez)
+
+1. Crea el bucket (por defecto `communitylab-activos-marketing`).
+2. Crea dos instancias `VM.Standard.E2.1.Micro` con Oracle Linux 9.
+3. En la **Security List** de la VCN, agrega reglas de ingreso TCP desde `0.0.0.0/0`: puerto `3000` para el frontend y `8000` para el backend.
+4. En tu usuario (Perfil → API Keys → Add API Key) genera una clave y descarga la clave privada (`.pem`) y el fragmento de configuración.
+
+### 2. Preparar cada VM
+
+```bash
+# Docker, Compose y Git
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin git
+sudo systemctl enable --now docker && sudo usermod -aG docker opc   # vuelve a iniciar sesión
+
+# Swap de 4 GiB: con 1 GB de RAM, el build de Next.js y LangGraph agotan la memoria
+sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo "/swapfile swap swap defaults 0 0" | sudo tee -a /etc/fstab
+
+# Firewall del sistema: 8000 en la VM del backend, 3000 en la del frontend
+sudo firewall-cmd --permanent --add-port=8000/tcp && sudo firewall-cmd --reload
+
+git clone <url-del-repositorio> ~/CommunityLab-G10-team23
+```
+
+### 3. Backend
+
+1. Copia las credenciales de OCI a la VM. **Nunca las subas al repositorio.**
+
+   ```bash
+   ssh opc@<IP_BACKEND> "mkdir -p ~/.oci"
+   scp oci_api_key.pem config opc@<IP_BACKEND>:~/.oci/
+   ssh opc@<IP_BACKEND> "chmod 600 ~/.oci/*"
+   ```
+
+   En `~/.oci/config`, `key_file` debe apuntar a `/home/opc/.oci/oci_api_key.pem`. Compose monta esa carpeta en el contenedor en modo solo lectura.
+2. Crea `~/CommunityLab-G10-team23/.env` con `GEMINI_API_KEY` y `GEMINI_MODEL`. Opcionalmente agrega `OCI_BUCKET_NAME`, `OCI_NAMESPACE` y `OCI_REGION` si usas valores distintos de los predeterminados.
+3. Levanta y verifica:
+
+   ```bash
+   docker compose up -d --build backend
+   curl http://localhost:8000/health
+   curl http://localhost:8000/api/v1/storage/packages   # fuerza la conexión con OCI
+   docker compose logs backend | grep "OCI Storage"     # debe decir "Conectado exitosamente"
+   ```
+
+   El cliente de OCI se crea en la primera operación de almacenamiento; por eso la verificación lista los paquetes antes de revisar el log. Si el log dice `Usando almacenamiento Mock local`, el backend no encontró las credenciales y está guardando los paquetes en disco, no en OCI.
+
+### 4. Frontend
+
+En la VM del frontend, apunta el proxy BFF al backend con un `docker-compose.override.yml` en la raíz del repositorio:
+
+```yaml
+services:
+  frontend:
+    environment:
+      - BACKEND_URL=http://<IP_BACKEND>:8000
+```
+
+```bash
+docker compose up -d --build frontend
+```
+
+Abre `http://<IP_FRONTEND>:3000`. El navegador solo habla con el frontend, que reenvía las llamadas `/api/*` al backend; así se evitan problemas de CORS.
+
+### 5. Actualizar una versión
+
+```bash
+cd ~/CommunityLab-G10-team23 && git pull
+docker compose up -d --build backend    # o frontend, según la VM
+```
+
+## API
+
+| Método | Ruta | Propósito |
+| --- | --- | --- |
+| `GET` | `/health` | Estado del servicio. |
+| `POST` | `/api/v1/pipeline/jobs` | Procesa un lote en segundo plano (A → B → C). Responde `202` con un `job_id`. Es lo que usa la interfaz. |
+| `GET` | `/api/v1/pipeline/jobs/{job_id}?desde=n` | Estado y avance del trabajo, con las interacciones procesadas desde el índice `n`. |
+| `POST` | `/api/v1/pipeline/process` | El mismo flujo, síncrono: responde al terminar el lote. |
+| `POST` | `/api/v1/ingest/process` | Solo el análisis del Equipo A, sin clasificación ni generación. |
+| `GET` | `/api/v1/review/assets` | Lista los candidatos y su estado de aprobación. |
+| `PATCH` | `/api/v1/review/assets/{candidato_id}` | Aprueba, rechaza o edita un candidato. |
+| `POST` | `/api/v1/storage/publish` | Elige los ganadores, arma el paquete oficial y lo guarda en OCI. |
+| `GET` | `/api/v1/storage/packages` | Lista los paquetes guardados con su contenido. |
+| `GET` | `/api/v1/storage/packages/{ruta}` | Descarga un paquete. |
+| `GET` | `/api/v1/storage/status` | Configuración de OCI (bucket y namespace). |
+
+Ejemplo de solicitud de lote (ver también [schemas/input.json](schemas/input.json)):
+
+```json
+{
+  "origen_comunidad": "Discord",
+  "periodo_referencia": "2026-W40",
+  "interacciones": [
+    { "autor": "Mariana", "canal": "#logros", "tipo": "mensaje",
+      "texto": "¡Conseguí mi primer empleo como desarrolladora backend gracias al bootcamp!" }
+  ]
+}
+```
+
+`POST /api/v1/storage/publish` acepta el mismo cuerpo más `items`, que son las interacciones ya revisadas. Así lo llama la interfaz, y se respeta lo que aprobó o rechazó la persona. Si se llama **sin `items`** (por ejemplo desde Swagger), el backend re-ejecuta el pipeline y aprueba todo automáticamente: es un modo de demostración del contrato oficial y no pasa por revisión humana. La respuesta sigue el contrato `RespuestaProcesamiento` ([schemas/output.json](schemas/output.json)): `status`, `resumen_comunidad`, `activos_distribucion_generados` (`post_linkedin`, `destaque_newsletter_semanal`, `sugerencia_contenido_faq`; un formato sin aprobados se omite) y `almacenamiento_oci`.
+
+## Pruebas
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 python -m pip install -r requirements.txt
 python -m pytest -q
 ```
 
-Las pruebas de API y de análisis simulan las llamadas al LLM, por lo que no necesitan credenciales ni acceso al proveedor. La imagen Docker también instala `pytest`; con el backend en ejecución se puede lanzar la suite en el contenedor con `docker compose exec backend python -m pytest -q`.
-
-## API disponible
-
-| Método | Ruta | Propósito |
-| --- | --- | --- |
-| `GET` | `/health` | Estado y entorno del servicio. |
-| `POST` | `/api/v1/ingest/process` | Equipo A solamente: valida un lote y devuelve cada interacción con su análisis. |
-| `POST` | `/api/v1/pipeline/process` | Flujo completo A→B→C: análisis, clasificación/score/ruteo y, si corresponde, generación de activos candidatos. Síncrono: responde al terminar todo el lote. |
-| `POST` | `/api/v1/pipeline/jobs` | Mismo flujo en segundo plano: responde `202` con un `job_id` y procesa una interacción a la vez (un lote a la vez). |
-| `GET` | `/api/v1/pipeline/jobs/{job_id}?desde=n` | Estado del trabajo (`en_cola`, `en_proceso`, `completado`, `fallido`), avance y las interacciones procesadas desde el índice `n`. |
-| `GET` | `/api/v1/review/assets` | Lista los activos candidatos generados y su estado de aprobación (HITL). |
-| `PATCH` | `/api/v1/review/assets/{candidato_id}` | Aprueba, rechaza o edita el contenido de un activo candidato antes de distribuirlo. |
-
-La solicitud de ingesta acepta hasta 500 interacciones y es el mismo payload para `/api/v1/ingest/process` y `/api/v1/pipeline/process`. Ejemplo:
-
-```json
-{
-	"origen_comunidad": "Discord",
-	"periodo_referencia": "2026-W40",
-	"interacciones": [
-		{
-			"autor": "Mariana",
-			"canal": "#preguntas",
-			"tipo": "pregunta",
-			"texto": "¿Cómo puedo usar FastAPI?"
-		}
-	]
-}
-```
-
-Cada elemento de `interacciones` requiere `autor`, `canal`, `tipo` y `texto` como cadenas. La API genera un `id` y un `timestamp` UTC, y entrega el análisis con `sentimiento`, `sentimiento_score` (de -1 a 1), `temas`, `entidades`, `resumen` e `intencion`. Si el proveedor falla tras el reintento, esa interacción se marca `degradado: true` y el lote continúa. Los datos enviados a esta ruta y su respuesta representan el **contrato interno de ingesta/análisis**; no son todavía el paquete externo final definido para el pipeline completo.
-
-`POST /api/v1/pipeline/process` y `POST /api/v1/pipeline/jobs` usan la misma solicitud. El primero responde al terminar el lote; el segundo responde de inmediato con un `job_id`, y `GET /api/v1/pipeline/jobs/{job_id}?desde=n` devuelve el avance y las interacciones procesadas desde el índice `n` (los trabajos viven en memoria del backend y se pierden al reiniciarlo). Ambos devuelven, por interacción, `oportunidad` (`categoria` y `relevance_score` de 0 a 100), `enrutamiento` (`ruta` y `motivo`), `activos_candidatos` (lista de activos generados con `candidato_id`, `tipo_activo`, `contenido` y `estado_aprobacion: "pendiente"`) y un `error` opcional si alguna fase falló para esa interacción sin interrumpir el resto del lote.
-
-`GET /api/v1/review/assets` devuelve esa misma lista de candidatos persistidos. `PATCH /api/v1/review/assets/{candidato_id}` acepta `{"estado_aprobacion": "aprobado" | "rechazado" | "pendiente", "contenido": {...}}` (`contenido` es opcional) y responde 404 si el id no existe.
+La suite simula Gemini y OCI: no requiere credenciales ni consume cuota. Con Docker: `docker compose exec backend python -m pytest -q`.
 
 ## Estructura del repositorio
 
 ```text
-backend/
-	app/
-		api/v1/         Routers y endpoints versionados (ingest, pipeline, review).
-		ai/             Prompts y análisis estructurado con LLM (Equipo A).
-		contracts/      Modelos Pydantic y enums compartidos entre equipos.
-		intelligence/   Clasificación determinista, LLM y cálculo de relevancia (Equipo B).
-		schemas/        Exposición de esquemas externos e internos.
-		workflow/       Grafo de clasificación/ruteo (LangGraph) y orquestación A→B→C.
-		content/        Generación de activos candidatos y persistencia para HITL (Equipo C).
-		config.py       Configuración del servicio.
-		main.py         Aplicación FastAPI y registro de routers.
-	data/             Almacenamiento JSON local de activos candidatos (no versionado).
-	tests/            Pruebas de API, análisis, contratos, intelligence, content y workflow.
-	Dockerfile
-	requirements.txt
-frontend/            Next.js: bandeja de revisión HITL y proxy BFF hacia la API (ver frontend/README.md).
-docs/                Arquitectura, contratos, despliegue y planes por equipo.
-schemas/             Ejemplos JSON de entrada y salida del contrato del proyecto.
-docker-compose.yml   Servicios de desarrollo local.
+backend/app/
+  api/v1/         Routers: ingest, pipeline, review, storage
+  ai/             Equipo A: análisis estructurado con LLM
+  intelligence/   Equipo B: clasificador LLM, reglas y relevance_score
+  workflow/       Grafo LangGraph, orquestación A→B→C y trabajos en segundo plano
+  content/        Equipo C: generación de activos y repositorio de candidatos
+  storage/        Equipo D: ensamblado del paquete y cliente de OCI Object Storage
+  contracts/      Modelos Pydantic y enums compartidos (contrato externo e interno)
+backend/tests/    Pruebas por módulo
+frontend/         Next.js: bandeja HITL, historial, dashboard y proxy BFF
+docs/             Arquitectura, contratos, diagramas y documentación por equipo
+schemas/          Ejemplos JSON de entrada y salida
 ```
 
-## Añadir una ruta nueva
+## Limitaciones
 
-Mantén las rutas en módulos propios bajo `backend/app/api/v1/`, los modelos de validación en `backend/app/contracts/` (y sus módulos de exposición en `backend/app/schemas/` cuando corresponda), y las pruebas bajo `backend/tests/api/`.
+- Los trabajos en segundo plano viven en memoria: asumen un solo worker y se pierden al reiniciar el backend.
+- Los candidatos en revisión se guardan en un JSON local (`backend/data/`). Lo único durable es el paquete publicado en OCI.
+- La validación "no quedan pendientes" se hace solo en la interfaz.
+- El número de paquete se calcula contando los existentes: dos guardados simultáneos podrían usar el mismo número.
 
-1. Define un modelo Pydantic de entrada y, si aplica, otro de respuesta; reutiliza los contratos existentes en vez de duplicarlos.
-2. Crea un `APIRouter` en un módulo nuevo, por ejemplo `backend/app/api/v1/items.py`, y declara la operación con `@router.get(...)`, `@router.post(...)`, etc. Usa `response_model` para validar/documentar la salida.
-3. Importa el router en `backend/app/main.py` y regístralo con `app.include_router(...)`. El `prefix` aporta la parte común de la ruta; por ejemplo, un prefijo `/api/v1/items` más `@router.get("/")` produce `/api/v1/items/`.
-4. Añade pruebas con `fastapi.testclient.TestClient` para respuestas correctas y entradas inválidas. Simula dependencias externas como Gemini u OCI para que la suite sea determinista.
-5. Comprueba el resultado en `/docs` y ejecuta `python -m pytest -q` desde `backend`.
+## Documentación
 
-`main.py` registra tres routers: el de ingesta bajo `/api/v1/ingest`, el del pipeline completo bajo `/api/v1/pipeline` y el de revisión HITL bajo `/api/v1/review`.
-
-## Ingesta y análisis (Equipo A)
-
-El flujo implementado en `POST /api/v1/ingest/process` es:
-
-1. FastAPI valida el lote con `SolicitudProcesamiento` y los modelos Pydantic compartidos.
-2. Para cada elemento crea `InteraccionInterna`, con identificador y marca temporal UTC.
-3. `app.ai.analyzer` envía el texto y contexto de comunidad/periodo al prompt de Gemini; exige una salida que valide como `AnalisisInterno` y reintenta una vez si hay error.
-4. Si un análisis sigue fallando, la ruta crea un resultado neutral y lo marca como degradado; los demás elementos del lote se procesan igualmente.
-5. La respuesta devuelve `origen_comunidad`, `periodo_referencia` y `interacciones_procesadas`.
-
-`tipo` se conserva como metadato de la fuente: no debe tratarse como una clasificación confiable. Según el contrato del proyecto, sentimiento, temas, entidades e intención se derivan del texto. Este endpoint no clasifica ni genera contenido; para eso usa el pipeline completo.
-
-## Pipeline completo (Equipos A→B→C)
-
-`app/workflow/pipeline.py::iter_batch` orquesta las tres fases por interacción y entrega cada resultado en cuanto termina. `POST /api/v1/pipeline/process` (`process_batch`) lo recorre completo; `POST /api/v1/pipeline/jobs` lo ejecuta en segundo plano (`app/workflow/jobs.py`), un lote a la vez y una interacción a la vez, que es lo que usa el frontend:
-
-1. **Equipo A** – mismo análisis que el endpoint de ingesta; si falla, usa el resultado neutral degradado y continúa.
-2. **Equipo B** – un grafo de LangGraph (`app/workflow/classification_graph.py`) clasifica el análisis: intenta con un clasificador LLM (hasta 2 intentos), cae a un clasificador determinista por palabras clave/intención si el LLM no responde con confianza ≥ 0.75, calcula un `relevance_score` (0–100) y decide una ruta (`equipo_c.generar_activos`, `equipo_c.revision_prioritaria` o `flujo.descartar`).
-3. **Equipo C** – si la ruta es `equipo_c.generar_activos`, `app/content/generator.py` pide a Gemini los formatos correspondientes a la categoría (post de LinkedIn, destaque de newsletter y/o sugerencia de FAQ) y, si el LLM falla, usa contenido de respaldo por plantilla. El prompt pide el copy de LinkedIn con estructura de post (gancho, párrafos cortos, llamada a la acción y hashtags) y el resumen del newsletter con formato de noticia, usando solo hechos del análisis. Los candidatos se guardan como `pendiente` vía `app/content/repository.py`.
-
-Un fallo en cualquier fase se registra en el campo `error` de esa interacción sin interrumpir el resto del lote (aislamiento de errores por ítem).
-
-## Revisión humana (HITL, Equipo C)
-
-Los activos candidatos generados se persisten en `backend/data/activos_candidatos.json` (no versionado, no es el almacenamiento OCI definitivo). `GET /api/v1/review/assets` los lista; `PATCH /api/v1/review/assets/{candidato_id}` permite aprobarlos, rechazarlos o editar su `contenido` antes de la distribución final. Esta revisión se hace desde la interfaz web en <http://localhost:3000> ([frontend/README.md](frontend/README.md)). Solo los candidatos con `estado_aprobacion: "aprobado"` deben llegar a distribución (ver `armar_respuesta_externa` en `app/contracts/models.py`, que elige el de mayor `relevance_score` por tipo oficial de activo).
-
-## Contratos y documentación
-
-- [Arquitectura y estado de implementación](docs/Architecture.md)
-- [Contratos de entrada, salida y comunicación interna](docs/DataContract.md)
-- [Ejecución y despliegue](docs/Deployment.md)
-- [Plan integral de equipos](docs/CommunityLab%20-%20Plan%20de%20equipos.md)
-- [Equipo A: ingesta y análisis](docs/Equipo%20A%20-%20Ingesta%20y%20analisis.md)
-- [Equipo B: clasificación, score y router](docs/Equipo%20B%20-%20Clasificacion%20score%20y%20router.md)
-- [Equipo C: generación y HITL](docs/Equipo%20C%20-%20Generacion%20y%20HITL.md)
-- [Equipo D: storage, dashboard y RAG](docs/Equipo%20D%20-%20Storage%20dashboard%20y%20RAG.md)
-
-Antes de implementar una fase nueva, acuerda el esquema Pydantic y los nombres de campos con los equipos que producen y consumen ese dato; conserva la distinción entre contrato externo oficial y contratos internos.
+- [Arquitectura](docs/Architecture.md) · [Contratos de datos](docs/DataContract.md)
+- [Equipo D: almacenamiento OCI, dashboard y despliegue](docs/Documentacion_Equipo_D_y_Despliegue_OCI.md)
+- Equipos: [A · Ingesta y análisis](docs/Equipo%20A%20-%20Ingesta%20y%20analisis.md) · [B · Clasificación, score y router](docs/Equipo%20B%20-%20Clasificacion%20score%20y%20router.md) · [C · Generación y HITL](docs/Equipo%20C%20-%20Generacion%20y%20HITL.md) · [D · Storage y dashboard](docs/Equipo%20D%20-%20Storage%20dashboard%20y%20RAG.md)
+- [Plan integral de equipos](docs/CommunityLab%20-%20Plan%20de%20equipos.md) · [Frontend](frontend/README.md)
