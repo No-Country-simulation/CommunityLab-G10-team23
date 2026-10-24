@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Community Lab - Hub de Distribución y Análisis",
   description: "Pipeline inteligente integrado con FastAPI",
+  icons: {
+    icon: "/logo.jpg",
+  },
 };
 
 export default function RootLayout({

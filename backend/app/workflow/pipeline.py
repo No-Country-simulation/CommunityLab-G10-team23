@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterator
 from uuid import uuid4
@@ -31,6 +32,24 @@ def _fallback_analysis() -> AnalisisInterno:
     )
 
 
+def _execute_with_rate_limit_retry(
+    fn: Callable[[], Any],
+    max_attempts: int = 2,
+    wait_seconds: float = 4.5,
+) -> Any:
+    """Ejecuta una llamada al LLM con reintento automático si Google AI Studio responde 429."""
+    for attempt in range(max_attempts):
+        try:
+            return fn()
+        except Exception as err:
+            err_msg = str(err).lower()
+            if any(k in err_msg for k in ["429", "resource_exhausted", "resourceexhausted", "quota", "rate limit", "ratelimit"]):
+                if attempt < max_attempts - 1:
+                    time.sleep(wait_seconds)
+                    continue
+            raise err
+
+
 def iter_batch(
     request: SolicitudProcesamiento,
     *,
@@ -41,7 +60,11 @@ def iter_batch(
     classifier = classifier or create_llm_classifier()
     graph = build_classification_graph(classifier)
 
-    for incoming in request.interacciones:
+    for idx, incoming in enumerate(request.interacciones):
+        # Pausa de cortesía entre interacciones para respetar el límite de 15 RPM en el plan gratuito de Gemini
+        if idx > 0:
+            time.sleep(3.0)
+
         interaction = InteraccionInterna(
             id=f"int_{uuid4().hex}",
             autor=incoming.autor,
@@ -54,10 +77,12 @@ def iter_batch(
         error: str | None = None
 
         try:
-            analysis = analyze_interaction(
-                interaction,
-                origen_comunidad=request.origen_comunidad,
-                periodo_referencia=request.periodo_referencia,
+            analysis = _execute_with_rate_limit_retry(
+                lambda: analyze_interaction(
+                    interaction,
+                    origen_comunidad=request.origen_comunidad,
+                    periodo_referencia=request.periodo_referencia,
+                )
             )
         except Exception as analysis_error:
             analysis = _fallback_analysis()
@@ -67,11 +92,13 @@ def iter_batch(
         team_b_result = None
         generated = None
         try:
-            graph_result = graph.invoke(
-                {
-                    "interaccion_id": interaction.id,
-                    "analisis": analysis,
-                }
+            graph_result = _execute_with_rate_limit_retry(
+                lambda: graph.invoke(
+                    {
+                        "interaccion_id": interaction.id,
+                        "analisis": analysis,
+                    }
+                )
             )
             team_b_result = graph_result["resultado"]
         except Exception as classification_error:
@@ -79,7 +106,8 @@ def iter_batch(
 
         if team_b_result is not None:
             try:
-                generated = (asset_generator or generate_assets)(team_b_result)
+                gen_fn = asset_generator or generate_assets
+                generated = _execute_with_rate_limit_retry(lambda: gen_fn(team_b_result))
                 if generated.activos_candidatos:
                     upsert_generation_result(generated)
             except Exception as content_error:
