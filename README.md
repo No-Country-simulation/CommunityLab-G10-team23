@@ -192,13 +192,12 @@ docs/             Arquitectura, contratos, diagramas y documentación por equipo
 schemas/          Ejemplos JSON de entrada y salida
 ```
 
-## Limitaciones conocidas
+## Limitaciones
 
 - Los trabajos en segundo plano viven en memoria: asumen un solo worker y se pierden al reiniciar el backend.
 - Los candidatos en revisión se guardan en un JSON local (`backend/data/`). Lo único durable es el paquete publicado en OCI.
 - La validación "no quedan pendientes" se hace solo en la interfaz.
 - El número de paquete se calcula contando los existentes: dos guardados simultáneos podrían usar el mismo número.
-- RAG no está implementado.
 
 ## Documentación
 
