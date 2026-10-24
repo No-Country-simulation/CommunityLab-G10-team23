@@ -47,8 +47,8 @@ Monolito modular: las fases del pipeline son módulos de un único backend, no m
 | Frontend | Next.js 15 (bandeja HITL, historial, dashboard) con rutas BFF `/api/*` que actúan de proxy hacia la API |
 | Backend | FastAPI + Pydantic v2, LangChain + LangGraph |
 | LLM | Google Gemini vía `langchain-google-genai` (recomendado `gemini-3.5-flash-lite`) |
-| Persistencia | OCI Object Storage (paquetes finales); JSON local para candidatos en revisión |
-| Infraestructura | Docker Compose; 2 VMs `VM.Standard.E2.1.Micro` de OCI Always Free (región `sa-vinhedo-1`) |
+| Persistencia | OCI Object Storage (Capacidad HDD 20GB); JSON local para candidatos en revisión |
+| Infraestructura | Docker Compose; 2 VMs `VM.Standard.E2.1.Micro` (RAM 1GB - SWAP 4GB) de OCI Always Free (región `sa-vinhedo-1`) |
 
 ## Inicio rápido (local)
 
