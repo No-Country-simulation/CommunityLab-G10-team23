@@ -22,11 +22,13 @@ import {
   STATUSES,
   STATUS_PLURAL,
   TABS,
+  copyText,
   discardedRows,
   matchesSearch,
   rowStatuses,
   rowsForTab,
 } from "@/lib/review";
+import { copyToClipboard } from "@/lib/clipboard";
 
 type ToastType = "success" | "error" | "info";
 
@@ -327,9 +329,18 @@ export default function Home() {
     }
   };
 
-  const publish = (candidato: ActivoCandidato) => {
+  const publish = async (candidato: ActivoCandidato) => {
+    const channelName = FORMATS[candidato.tipo_activo].channel;
+    if (candidato.tipo_activo === "post_linkedin") {
+      const text = copyText(candidato.tipo_activo, candidato.contenido);
+      await copyToClipboard(text);
+      notify("¡Copiado al portapapeles! Abriendo LinkedIn para publicar...", "success");
+      const url = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
     notify(
-      `Publicación en ${FORMATS[candidato.tipo_activo].channel} simulada: la integración con el canal aún no está disponible`,
+      `Publicación en ${channelName} simulada: la integración con el canal aún no está disponible`,
       "info"
     );
   };

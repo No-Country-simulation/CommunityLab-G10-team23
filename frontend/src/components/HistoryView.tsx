@@ -21,7 +21,9 @@ import {
   MessageSquare,
   Tag,
   Filter,
+  Send,
 } from "lucide-react";
+import { copyToClipboard } from "@/lib/clipboard";
 
 interface CasoItem {
   interaccion: {
@@ -360,17 +362,21 @@ export function HistoryView() {
     setInspectActiveChannel(firstType);
   };
 
-  const copyModalContent = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedModalText(true);
-    setTimeout(() => setCopiedModalText(false), 2000);
+  const copyModalContent = async (text: string) => {
+    const ok = await copyToClipboard(text);
+    if (ok) {
+      setCopiedModalText(true);
+      setTimeout(() => setCopiedModalText(false), 2000);
+    }
   };
 
-  const copyCaseJsonContent = () => {
+  const copyCaseJsonContent = async () => {
     if (!inspectCase) return;
-    navigator.clipboard.writeText(JSON.stringify(inspectCase, null, 2));
-    setCopiedCaseJson(true);
-    setTimeout(() => setCopiedCaseJson(false), 2000);
+    const ok = await copyToClipboard(JSON.stringify(inspectCase, null, 2));
+    if (ok) {
+      setCopiedCaseJson(true);
+      setTimeout(() => setCopiedCaseJson(false), 2000);
+    }
   };
 
   return (
@@ -1305,13 +1311,28 @@ export function HistoryView() {
                                     {content.copy}
                                   </div>
                                 </div>
-                                <div className="flex justify-end pt-2">
+                                <div className="flex justify-end gap-2 pt-2">
                                   <button
-                                    onClick={() => copyModalContent(`${content.titulo}\n\n${content.copy}`)}
+                                    onClick={() => copyModalContent(`${content.titulo ? content.titulo + "\n\n" : ""}${content.copy || ""}`)}
                                     className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 font-semibold transition cursor-pointer shadow-2xs"
                                   >
                                     {copiedModalText ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5 text-white" />}
                                     {copiedModalText ? "¡Copiado!" : "Copiar contenido"}
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      const text = `${content.titulo ? content.titulo + "\n\n" : ""}${content.copy || ""}`;
+                                      await copyToClipboard(text);
+                                      window.open(
+                                        `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`,
+                                        "_blank",
+                                        "noopener,noreferrer"
+                                      );
+                                    }}
+                                    className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-sky-700 text-white hover:bg-sky-600 font-semibold transition cursor-pointer shadow-2xs"
+                                  >
+                                    <Send className="w-3.5 h-3.5 text-white" />
+                                    Publicar en LinkedIn
                                   </button>
                                 </div>
                               </div>
