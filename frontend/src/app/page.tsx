@@ -261,6 +261,14 @@ export default function Home() {
       );
       // Redirigir al historial para visualizar de inmediato el paquete guardado
       setViewMode("historial");
+
+      // Resetear la bandeja de entrada para que quede completamente limpia y lista para un nuevo lote
+      setSolicitud(null);
+      setResult(null);
+      setJob(null);
+      setDetail(null);
+      setSearch("");
+      setTab("todos");
     } catch (err: any) {
       notify(`Error al guardar cambios en OCI: ${err.message}`, "error");
     } finally {
