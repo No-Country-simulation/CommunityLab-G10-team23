@@ -1,5 +1,14 @@
 # CommunityLab · Grupo 10 · Equipo 23
 
+## Integrantes
+Lista con integrantes
+
+- Bienvenida (porqué, quién, qué, cómo)
+- diagrama de alto nivel de la solucion
+- arquitectura - flujo
+- Cómo usarlo (pantallazos, instrucciones, gif animado)
+
+
 CommunityLab convierte las conversaciones de una comunidad de aprendizaje (Discord, CSV, formularios, GitHub) en **activos de comunicación listos para publicar**: posts de LinkedIn, destacados para el newsletter semanal y sugerencias de FAQ. Agentes con LLM (Google Gemini) analizan, clasifican y redactan; una persona revisa y aprueba cada pieza, y el paquete final se guarda en **OCI Object Storage**.
 
 **Demo en vivo (OCI Always Free)**
