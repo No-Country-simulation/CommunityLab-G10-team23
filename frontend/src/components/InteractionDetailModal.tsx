@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, Check, Clock, Copy, Save, Send, AlertTriangle, Ban } from "lucide-react";
+import { X, Check, Clock, Copy, AlertTriangle, Ban } from "lucide-react";
 import { ActivoCandidato, EstadoAprobacion, ResultadoPipelineItem } from "@/types/backend";
 import { CATEGORY_LABELS, FORMATS, copyText, fieldText, isAlert, isDiscarded } from "@/lib/review";
 import { StatusBadge } from "./ReviewTable";
@@ -17,7 +17,7 @@ interface InteractionDetailModalProps {
     status: EstadoAprobacion,
     contenido: Record<string, any>
   ) => Promise<boolean>;
-  onPublish: (candidato: ActivoCandidato) => void;
+  onPublish?: (candidato: ActivoCandidato) => void;
   onCopied: () => void;
 }
 
@@ -46,6 +46,13 @@ export function InteractionDetailModal({
 
   const requestClose = () => {
     if (anyDirty && !window.confirm("Tienes cambios sin guardar. ¿Cerrar de todos modos?")) return;
+    const hasPending = candidatos.some((c) => c.estado_aprobacion === "pendiente");
+    if (hasPending) {
+      const confirmClose = window.confirm(
+        "Aún tienes canales pendientes de revisar en este caso. ¿Deseas salir de todos modos?"
+      );
+      if (!confirmClose) return;
+    }
     onClose();
   };
 
@@ -70,6 +77,17 @@ export function InteractionDetailModal({
     const ok = await onSave(item, c, status, { ...c.contenido, ...drafts[c.candidato_id] });
     if (ok) {
       setDrafts(({ [c.candidato_id]: _, ...rest }) => rest);
+
+      // Al tomar una decisión (aprobar o rechazar), avanzar automáticamente
+      // al siguiente canal que aún tenga pendiente de revisión en este caso
+      if (status === "aprobado" || status === "rechazado") {
+        const nextPending = candidatos.find(
+          (other) => other.candidato_id !== c.candidato_id && other.estado_aprobacion === "pendiente"
+        );
+        if (nextPending) {
+          setActiveId(nextPending.candidato_id);
+        }
+      }
     }
   };
 
@@ -180,14 +198,24 @@ export function InteractionDetailModal({
                         role="tab"
                         aria-selected={c.candidato_id === active.candidato_id}
                         onClick={() => setActiveId(c.candidato_id)}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-md cursor-pointer ${
+                        className={`text-xs font-medium px-3 py-1.5 rounded-md cursor-pointer flex items-center gap-1.5 ${
                           c.candidato_id === active.candidato_id
-                            ? "bg-white shadow-sm text-slate-900"
+                            ? "bg-white shadow-sm text-slate-900 font-semibold"
                             : "text-slate-500 hover:text-slate-800"
                         }`}
                       >
                         {FORMATS[c.tipo_activo].label}
-                        {isDirty(c) && <span className="ml-1 text-indigo-500">•</span>}
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            c.estado_aprobacion === "aprobado"
+                              ? "bg-emerald-500"
+                              : c.estado_aprobacion === "rechazado"
+                              ? "bg-rose-500"
+                              : "bg-amber-400 animate-pulse"
+                          }`}
+                          title={`Estado: ${c.estado_aprobacion}`}
+                        />
+                        {isDirty(c) && <span className="ml-0.5 text-indigo-500">•</span>}
                       </button>
                     ))}
                   </div>
@@ -238,11 +266,6 @@ export function InteractionDetailModal({
         {active && (
           <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-t border-slate-200 bg-white">
             <FooterButton onClick={() => copy(active)} icon={<Copy className="w-4 h-4" />} label="Copiar" />
-            <PublishButton
-              channel={FORMATS[active.tipo_activo].channel}
-              enabled={active.estado_aprobacion === "aprobado" && !dirty}
-              onClick={() => onPublish(active)}
-            />
 
             <div className="ml-auto flex flex-wrap gap-2">
               {active.estado_aprobacion !== "rechazado" && (
@@ -262,12 +285,6 @@ export function InteractionDetailModal({
                   label="Marcar pendiente"
                 />
               )}
-              <FooterButton
-                onClick={() => save(active, active.estado_aprobacion)}
-                disabled={saving || !dirty}
-                icon={<Save className="w-4 h-4" />}
-                label="Guardar"
-              />
               {active.estado_aprobacion !== "aprobado" && (
                 <FooterButton
                   onClick={() => save(active, "aprobado")}
@@ -365,19 +382,5 @@ function FooterButton({
       {icon}
       {label}
     </button>
-  );
-}
-
-function PublishButton({ channel, enabled, onClick }: { channel: string; enabled: boolean; onClick: () => void }) {
-  return (
-    <span title={enabled ? undefined : "Aprueba y guarda el contenido para habilitar la publicación"}>
-      <FooterButton
-        onClick={onClick}
-        disabled={!enabled}
-        icon={<Send className="w-4 h-4" />}
-        label={`Publicar en ${channel}`}
-        className="text-indigo-700 border-indigo-200 hover:bg-indigo-50"
-      />
-    </span>
   );
 }

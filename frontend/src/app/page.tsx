@@ -5,6 +5,7 @@ import { Upload, Loader2, Search, Ban, Inbox, FileJson } from "lucide-react";
 import { Header } from "@/components/Header";
 import { ReviewTable, TableMode } from "@/components/ReviewTable";
 import { InteractionDetailModal } from "@/components/InteractionDetailModal";
+import { HistoryView } from "@/components/HistoryView";
 import {
   ActivoCandidato,
   EstadoAprobacion,
@@ -26,7 +27,6 @@ import {
   rowStatuses,
   rowsForTab,
 } from "@/lib/review";
-import { SAMPLES } from "@/lib/samples";
 
 type ToastType = "success" | "error" | "info";
 
@@ -40,30 +40,63 @@ function errorDetail(json: any, fallback: string): string {
   return fallback;
 }
 
-// Valida que el archivo cumpla el contrato SolicitudProcesamiento.
+// Valida y normaliza flexiblemente el archivo para cumplir el contrato SolicitudProcesamiento.
 function parseBatch(text: string): SolicitudProcesamiento {
   let parsed: any;
   try {
-    parsed = JSON.parse(text);
+    const cleanText = text.replace(/^\uFEFF/, "").trim();
+    parsed = JSON.parse(cleanText);
   } catch (err: any) {
     throw new Error(`El archivo no es un JSON válido: ${err.message}`);
   }
-  if (!parsed || typeof parsed.origen_comunidad !== "string" || typeof parsed.periodo_referencia !== "string") {
-    throw new Error("Faltan los campos origen_comunidad o periodo_referencia.");
+
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("El archivo no contiene un JSON válido.");
   }
-  if (!Array.isArray(parsed.interacciones) || parsed.interacciones.length === 0) {
-    throw new Error("El lote no tiene interacciones.");
+
+  if (parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data)) {
+    parsed = parsed.data;
+  } else if (parsed.solicitud && typeof parsed.solicitud === "object" && !Array.isArray(parsed.solicitud)) {
+    parsed = parsed.solicitud;
   }
-  if (parsed.interacciones.length > 500) {
+
+  let rawInteractions: any[] = [];
+  if (Array.isArray(parsed)) {
+    rawInteractions = parsed;
+  } else if (Array.isArray(parsed.interacciones)) {
+    rawInteractions = parsed.interacciones;
+  } else if (Array.isArray(parsed.items)) {
+    rawInteractions = parsed.items.map((it: any) => it.interaccion || it);
+  }
+
+  if (!rawInteractions || rawInteractions.length === 0) {
+    throw new Error("El archivo JSON no contiene ninguna lista de interacciones.");
+  }
+  if (rawInteractions.length > 500) {
     throw new Error("El lote supera el máximo de 500 interacciones.");
   }
-  const invalid = parsed.interacciones.findIndex(
+
+  const invalid = rawInteractions.findIndex(
     (i: any) => !i || !["autor", "canal", "tipo", "texto"].every((k) => typeof i[k] === "string")
   );
   if (invalid !== -1) {
     throw new Error(`La interacción ${invalid + 1} debe tener autor, canal, tipo y texto.`);
   }
-  return parsed;
+
+  const origen_comunidad =
+    typeof parsed.origen_comunidad === "string" && parsed.origen_comunidad.trim()
+      ? parsed.origen_comunidad.trim()
+      : "Comunidad_General";
+  const periodo_referencia =
+    typeof parsed.periodo_referencia === "string" && parsed.periodo_referencia.trim()
+      ? parsed.periodo_referencia.trim()
+      : `Lote_${new Date().toISOString().slice(0, 10)}`;
+
+  return {
+    origen_comunidad,
+    periodo_referencia,
+    interacciones: rawInteractions,
+  };
 }
 
 export default function Home() {
@@ -83,10 +116,10 @@ export default function Home() {
   const [isPublishingOCI, setIsPublishingOCI] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
+  const [viewMode, setViewMode] = useState<"revision" | "historial">("revision");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  // Cantidad de interacciones ya recibidas del trabajo actual (parámetro `desde`).
   const receivedRef = useRef(0);
 
   const notify = (msg: string, type: ToastType) => {
@@ -95,11 +128,10 @@ export default function Home() {
     toastTimer.current = setTimeout(() => setToast(null), 3500);
   };
 
-  // Punto único de entrada de un lote: hoy desde archivo o demo, en el futuro desde la nube.
-  // El backend lo procesa en segundo plano, una interacción a la vez.
   const cargarLote = async (lote: SolicitudProcesamiento) => {
     if (isProcessing) return;
     setIsSubmitting(true);
+    setViewMode("revision");
     try {
       const response = await fetch("/api/pipeline/jobs", {
         method: "POST",
@@ -138,7 +170,6 @@ export default function Home() {
     }
   };
 
-  // Consulta el avance del trabajo y agrega las filas nuevas a medida que el backend las termina.
   useEffect(() => {
     if (!job || (job.estado !== "en_cola" && job.estado !== "en_proceso")) return;
     let cancelled = false;
@@ -189,14 +220,31 @@ export default function Home() {
 
   const handlePublishOCI = async () => {
     if (!solicitud || isPublishingOCI) return;
+
+    const itemsToSave = result?.interacciones_procesadas ?? [];
+    const hasPending = itemsToSave.some((it) =>
+      it.activos_candidatos.some((c) => c.estado_aprobacion === "pendiente")
+    );
+    if (hasPending) {
+      notify(
+        "⚠️ No se puede guardar: aún tienes casos o canales en estado Pendiente. Por favor aprueba o rechaza cada uno antes de guardar.",
+        "error"
+      );
+      return;
+    }
+
     setIsPublishingOCI(true);
-    notify("Publicando paquete consolidado en OCI Object Storage…", "info");
+    notify("Guardando cambios en OCI Object Storage…", "info");
 
     try {
+      const payload = {
+        ...solicitud,
+        items: result?.interacciones_procesadas ?? [],
+      };
       const response = await fetch("/api/storage/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(solicitud),
+        body: JSON.stringify(payload),
       });
       const json = await response.json().catch(() => null);
 
@@ -206,11 +254,13 @@ export default function Home() {
 
       const oci = json.data.almacenamiento_oci;
       notify(
-        `✅ Guardado en OCI Bucket '${oci.bucket}': ${oci.ruta_objeto}`,
+        `✅ Cambios guardados en OCI Bucket '${oci.bucket}': ${oci.ruta_objeto}`,
         "success"
       );
+      // Redirigir al historial para visualizar de inmediato el paquete guardado
+      setViewMode("historial");
     } catch (err: any) {
-      notify(`Error al publicar en OCI: ${err.message}`, "error");
+      notify(`Error al guardar cambios en OCI: ${err.message}`, "error");
     } finally {
       setIsPublishingOCI(false);
     }
@@ -218,48 +268,13 @@ export default function Home() {
 
   const handleFile = async (file: File) => {
     try {
-      cargarLote(parseBatch(await file.text()));
+      const text = await file.text();
+      const lote = parseBatch(text);
+      await cargarLote(lote);
     } catch (err: any) {
       notify(err.message, "error");
     }
   };
-
-  // Arrastrar un .json sobre cualquier parte de la página.
-  useEffect(() => {
-    let depth = 0;
-    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
-    const onEnter = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
-      depth++;
-      setIsDragging(true);
-    };
-    const onLeave = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
-      depth = Math.max(0, depth - 1);
-      if (depth === 0) setIsDragging(false);
-    };
-    const onOver = (e: DragEvent) => {
-      if (hasFiles(e)) e.preventDefault();
-    };
-    const onDrop = (e: DragEvent) => {
-      if (!hasFiles(e)) return;
-      e.preventDefault();
-      depth = 0;
-      setIsDragging(false);
-      const file = e.dataTransfer?.files[0];
-      if (file) handleFile(file);
-    };
-    window.addEventListener("dragenter", onEnter);
-    window.addEventListener("dragleave", onLeave);
-    window.addEventListener("dragover", onOver);
-    window.addEventListener("drop", onDrop);
-    return () => {
-      window.removeEventListener("dragenter", onEnter);
-      window.removeEventListener("dragleave", onLeave);
-      window.removeEventListener("dragover", onOver);
-      window.removeEventListener("drop", onDrop);
-    };
-  });
 
   // Revisión humana: el backend reemplaza `contenido`, por eso siempre se envía completo.
   const saveCandidate = async (
@@ -321,12 +336,16 @@ export default function Home() {
 
   const items = result?.interacciones_procesadas ?? [];
   const inDiscarded = tab === "todos" && showDiscarded;
-  const usesStatus = tab !== "alertas" && !inDiscarded;
   const baseRows = inDiscarded ? discardedRows(items) : rowsForTab(items, tab);
-  const statusCount = (s: EstadoAprobacion) => baseRows.filter((r) => rowStatuses(r).includes(s)).length;
+  const statusCount = (s: EstadoAprobacion) =>
+    tab === "alertas"
+      ? (s === "pendiente" ? baseRows.length : 0)
+      : baseRows.filter((r) => rowStatuses(r).includes(s)).length;
+  const isFilteredByStatus = tab !== "alertas" && !inDiscarded;
   const visibleRows = baseRows.filter(
-    (r) => (!usesStatus || rowStatuses(r).includes(status)) && matchesSearch(r, search)
+    (r) => (!isFilteredByStatus || rowStatuses(r).includes(status)) && matchesSearch(r, search)
   );
+
   const mode: TableMode = inDiscarded || tab === "alertas" ? "motivo" : tab === "todos" ? "todos" : "formato";
   const detailItem = detail && items.find((it) => it.interaccion.id === detail.itemId);
 
@@ -343,12 +362,10 @@ export default function Home() {
         progress={job && isProcessing ? { procesadas: job.procesadas, total: job.total } : null}
         onPickFile={() => fileInputRef.current?.click()}
         onReprocess={() => solicitud && cargarLote(solicitud)}
-        onLoadSample={(key) => {
-          const sample = SAMPLES.find((s) => s.key === key);
-          if (sample) cargarLote(sample.data);
-        }}
         onPublishOCI={handlePublishOCI}
         isPublishing={isPublishingOCI}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
       <input
         ref={fileInputRef}
@@ -362,7 +379,11 @@ export default function Home() {
         }}
       />
 
-      {!result ? (
+      {viewMode === "historial" ? (
+        <main className="flex-1 overflow-hidden bg-slate-50">
+          <HistoryView />
+        </main>
+      ) : !result ? (
         <main className="flex-1 flex items-center justify-center p-6">
           {isSubmitting ? (
             <LoadingState label="Enviando el lote al backend…" />
@@ -390,7 +411,25 @@ export default function Home() {
         </main>
       ) : (
         <>
-          <nav className="bg-white border-b border-slate-200 px-4 sm:px-6 flex gap-1 overflow-x-auto" role="tablist">
+          {/* Encabezado limpio de la Bandeja de Revisión */}
+          <div className="bg-white border-b border-slate-200 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Bandeja de revisión</h2>
+              <p className="text-xs text-slate-500">
+                Evalúa, edita y aprueba las propuestas de contenido generadas por la IA antes de guardarlas en el historial.
+              </p>
+            </div>
+            {solicitud && (
+              <div className="text-xs text-slate-500 flex items-center gap-2">
+                <span className="font-medium text-slate-700">{solicitud.origen_comunidad}</span>
+                <span>·</span>
+                <span className="text-indigo-600 font-semibold">{items.length} interacciones</span>
+              </div>
+            )}
+          </div>
+
+          {/* Nivel 1: Canales de contenido */}
+          <nav className="bg-white border-b border-slate-200 px-6 flex gap-1 overflow-x-auto shadow-2xs" role="tablist">
             {TABS.map((t) => {
               const count = rowsForTab(items, t.key).length;
               const selected = tab === t.key;
@@ -399,21 +438,20 @@ export default function Home() {
                   key={t.key}
                   role="tab"
                   aria-selected={selected}
-                  onClick={() => setTab(t.key)}
-                  className={`shrink-0 text-sm px-3 py-3 border-b-2 -mb-px flex items-center gap-2 cursor-pointer ${
+                  onClick={() => {
+                    setTab(t.key);
+                    setShowDiscarded(false);
+                  }}
+                  className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 -mb-px flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
                     selected
-                      ? "border-indigo-600 text-indigo-700 font-semibold"
+                      ? "border-indigo-600 text-indigo-600"
                       : "border-transparent text-slate-500 hover:text-slate-800"
                   }`}
                 >
                   {t.label}
                   <span
-                    className={`text-[11px] tabular-nums px-1.5 py-0.5 rounded-full ${
-                      t.key === "alertas" && count > 0
-                        ? "bg-orange-100 text-orange-800"
-                        : selected
-                        ? "bg-indigo-100 text-indigo-700"
-                        : "bg-slate-100 text-slate-500"
+                    className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
+                      selected ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
                     }`}
                   >
                     {count}
@@ -423,65 +461,83 @@ export default function Home() {
             })}
           </nav>
 
-          <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-2.5 flex flex-wrap items-center gap-3">
-            {usesStatus && (
-              <div className="flex gap-1 p-1 bg-slate-100 rounded-lg" role="radiogroup" aria-label="Estado de revisión">
-                {STATUSES.map((s) => (
-                  <button
-                    key={s}
-                    role="radio"
-                    aria-checked={status === s}
-                    onClick={() => setStatus(s)}
-                    className={`text-xs font-medium px-3 py-1.5 rounded-md flex items-center gap-1.5 cursor-pointer ${
-                      status === s ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                  >
-                    {STATUS_PLURAL[s]}
-                    <span className="tabular-nums text-slate-400">{statusCount(s)}</span>
-                  </button>
-                ))}
+          {/* Nivel 2: Estados de aprobación y Buscador */}
+          <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {/* Filtro por estado de aprobación (Pendientes, Aprobados, Rechazados) */}
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="group">
+                {STATUSES.map((s) => {
+                  const count = statusCount(s);
+                  const active = status === s;
+                  return (
+                    <button
+                      key={s}
+                      onClick={() => setStatus(s)}
+                      className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                        active
+                          ? "bg-white text-slate-900 shadow-xs font-semibold"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      {STATUS_PLURAL[s]}
+                      <span className="text-[11px] text-slate-400 font-normal">({count})</span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
-            {tab === "alertas" && (
-              <p className="text-xs text-slate-500">
-                Interacciones que requieren atención del equipo. No generan contenido para revisar.
-              </p>
-            )}
-            {inDiscarded && (
-              <p className="text-xs text-slate-500">Interacciones que la IA descartó por no tener potencial de contenido.</p>
-            )}
 
-            <div className="ml-auto flex items-center gap-2">
+              {/* Botón de descartadas cuando se está en 'todos' */}
               {tab === "todos" && (
                 <button
                   onClick={() => setShowDiscarded((v) => !v)}
-                  aria-pressed={showDiscarded}
-                  className={`text-xs font-medium px-3 py-2 rounded-lg border flex items-center gap-1.5 cursor-pointer ${
+                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
                     showDiscarded
-                      ? "bg-slate-800 border-slate-800 text-white"
-                      : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                      ? "bg-slate-900 text-white font-semibold"
+                      : "text-slate-600 hover:bg-slate-100 border border-slate-200"
                   }`}
                 >
                   <Ban className="w-3.5 h-3.5" />
-                  Ver descartadas
-                  <span className="tabular-nums opacity-70">{discardedRows(items).length}</span>
+                  Descartadas ({discardedRows(items).length})
                 </button>
               )}
-              <label className="relative">
-                <span className="sr-only">Buscar por autor</span>
-                <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar autor…"
-                  className="text-sm pl-8 pr-3 py-1.5 w-48 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </label>
+            </div>
+
+            {/* Buscador */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por autor, texto o motivo…"
+                className="text-xs pl-8 pr-3 py-1.5 w-64 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+              />
             </div>
           </div>
 
-          <main className="flex-1 overflow-auto relative bg-white">
+          <main
+            className="flex-1 overflow-auto bg-white relative"
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragging(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) handleFile(file);
+            }}
+          >
+            {isDragging && (
+              <div className="absolute inset-0 z-20 bg-indigo-500/10 border-2 border-dashed border-indigo-500 backdrop-blur-xs flex items-center justify-center">
+                <div className="bg-white px-6 py-4 rounded-xl shadow-lg text-sm font-semibold text-indigo-700 flex items-center gap-2">
+                  <Upload className="w-4 h-4 animate-bounce" />
+                  Suelta el archivo JSON aquí
+                </div>
+              </div>
+            )}
+
             {visibleRows.length > 0 ? (
               <ReviewTable
                 rows={visibleRows}
@@ -490,30 +546,13 @@ export default function Home() {
                 onOpen={openDetail}
                 onSetStatus={(item, c, s) => saveCandidate(item, c, s, c.contenido)}
               />
-            ) : isProcessing && job && !search ? (
-              <div className="h-full flex items-center justify-center p-6">
-                <LoadingState
-                  label={`Procesando interacción ${Math.min(job.procesadas + 1, job.total)} de ${job.total}…`}
-                  hint="Las filas aparecerán aquí a medida que la IA termine cada interacción."
-                />
-              </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center gap-2 text-center p-6 text-slate-500">
+              <div className="h-64 flex flex-col items-center justify-center gap-2 text-slate-400 text-center">
                 <Inbox className="w-8 h-8 text-slate-300" />
-                <p className="text-sm">
-                  {search
-                    ? `Ningún autor coincide con "${search}".`
-                    : inDiscarded
-                    ? "No hay interacciones descartadas en este lote."
-                    : tab === "alertas"
-                    ? "No hay alertas de soporte en este lote."
-                    : `No hay contenidos ${STATUS_PLURAL[status].toLowerCase()} en esta pestaña.`}
+                <p className="text-sm font-medium text-slate-600">No hay elementos para mostrar</p>
+                <p className="text-xs">
+                  {search ? "Prueba con otra búsqueda o limpia el filtro." : "No hay candidatos con los filtros actuales."}
                 </p>
-              </div>
-            )}
-            {isSubmitting && (
-              <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
-                <LoadingState label="Enviando el lote al backend…" />
               </div>
             )}
           </main>
@@ -524,22 +563,13 @@ export default function Home() {
         <InteractionDetailModal
           key={detailItem.interaccion.id}
           item={detailItem}
-          initialCandidateId={detail?.candidateId}
+          initialCandidateId={detail.candidateId}
           savingId={savingId}
           onClose={() => setDetail(null)}
           onSave={saveCandidate}
           onPublish={publish}
           onCopied={() => notify("Contenido copiado al portapapeles", "info")}
         />
-      )}
-
-      {isDragging && (
-        <div className="fixed inset-0 z-60 bg-indigo-600/15 backdrop-blur-[1px] p-4 pointer-events-none">
-          <div className="h-full rounded-2xl border-2 border-dashed border-indigo-500 flex flex-col items-center justify-center gap-2 text-indigo-700">
-            <Upload className="w-10 h-10" />
-            <p className="text-lg font-semibold">Suelta el archivo JSON para procesarlo</p>
-          </div>
-        </div>
       )}
 
       {toast && (
