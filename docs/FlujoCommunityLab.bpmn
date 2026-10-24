@@ -1,0 +1,1022 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="defs_communitylab" targetNamespace="http://communitylab/bpmn" exporter="bpmn-js (https://demo.bpmn.io)" exporterVersion="18.29.0">
+  <bpmn:collaboration id="collab">
+    <bpmn:participant id="pool" name="CommunityLab" processRef="proc_lote" />
+    <bpmn:textAnnotation id="a_items">
+      <bpmn:text>Los errores se guardan en el campo error del ítem; el lote continúa con la siguiente interacción.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="a_conf">
+      <bpmn:text>El LLM propone; el umbral 0.75 decide si se le cree.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="a_fallido">
+      <bpmn:text>Fallo fuera de los ítems (p. ej. falta GEMINI_API_KEY antes del bucle): cae el lote entero.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="a_fallido_assoc" sourceRef="a_fallido" targetRef="end_fallido" />
+    <bpmn:textAnnotation id="a_polling">
+      <bpmn:text>Los candidatos aparecen en la bandeja a medida que cada interacción termina.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="a_revisar">
+      <bpmn:text>Sin vencimiento: un candidato puede quedar pendiente indefinidamente, y uno rechazado puede volver a aprobado (el PATCH no lo restringe). Mientras que no se hayan guardado los cambios, los estados pueden ser modificados.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="a_revisar_assoc" sourceRef="a_revisar" targetRef="t_revisar" />
+    <bpmn:textAnnotation id="a_publicar">
+      <bpmn:text>Solo se guarda si no quedan pendientes. Se envían los ítems revisados y se respeta la decisión humana (aprobado / rechazado).</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="a_publicar_assoc" sourceRef="a_publicar" targetRef="t_publicar" />
+    <bpmn:textAnnotation id="a_espera">
+      <bpmn:text>Se omite en la primera interacción.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="a_espera_assoc" sourceRef="a_espera" targetRef="s_espera" />
+    <bpmn:textAnnotation id="a_429">
+      <bpmn:text>Llamadas al LLM (✦): si Gemini responde 429, espera 4.5 s y reintenta una vez.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:textAnnotation id="a_desc">
+      <bpmn:text>En la interfaz aparece bajo el filtro «Descartadas»; no es un estado del backend.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="a_desc_assoc" sourceRef="a_desc" targetRef="end_desc" />
+    <bpmn:textAnnotation id="a_paquete">
+      <bpmn:text>El paquete guardado incluye resumen de comunidad, activos ganadores y todos los casos revisados.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="a_paquete_assoc" sourceRef="a_paquete" targetRef="end_pub" />
+  </bpmn:collaboration>
+  <bpmn:process id="proc_lote" isExecutable="false">
+    <bpmn:laneSet id="lanes">
+      <bpmn:lane id="lane_D" name="Publicación OCI e Historial">
+        <bpmn:flowNodeRef>t_seleccionar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_resumen</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_subir</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_pub</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_numerar</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_C" name="Agente Redactor" />
+      <bpmn:lane id="lane_B" name="Agente Clasificador">
+        <bpmn:flowNodeRef>sub</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_A" name="Agente Analista">
+        <bpmn:flowNodeRef>b_sub</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_ORQ" name="Orquestador de trabajos">
+        <bpmn:flowNodeRef>t_crear</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_par</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_iniciar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_fallido</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_fallido</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_completar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_completado</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_FE" name="Frontend">
+        <bpmn:flowNodeRef>timer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>gw_estado</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_conexion</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_consultar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>g_pend</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_alerta</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_enviar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_listar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_dashboard</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="lane_CM" name="Community Manager">
+        <bpmn:flowNodeRef>start_lote</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_cargar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_revisar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_publicar</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>t_ver</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>end_hist</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="start_lote" name="Lote recibido">
+      <bpmn:outgoing>f1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="t_cargar" name="Cargar lote (JSON o demo)">
+      <bpmn:incoming>f1</bpmn:incoming>
+      <bpmn:outgoing>f2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="t_crear" name="Crear trabajo [en_cola]">
+      <bpmn:incoming>f2</bpmn:incoming>
+      <bpmn:outgoing>f3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:parallelGateway id="gw_par">
+      <bpmn:incoming>f3</bpmn:incoming>
+      <bpmn:outgoing>f4</bpmn:outgoing>
+      <bpmn:outgoing>f5</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="t_iniciar" name="Iniciar procesamiento [en_proceso]">
+      <bpmn:incoming>f4</bpmn:incoming>
+      <bpmn:outgoing>f6</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="t_fallido" name="Marcar trabajo [fallido]">
+      <bpmn:incoming>f9</bpmn:incoming>
+      <bpmn:outgoing>f10</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_fallido" name="Trabajo fallido">
+      <bpmn:incoming>f10</bpmn:incoming>
+      <bpmn:errorEventDefinition id="end_fallido_def" />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="t_completar" name="Marcar trabajo [completado]">
+      <bpmn:incoming>f7</bpmn:incoming>
+      <bpmn:outgoing>f8</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="end_completado" name="Trabajo completado">
+      <bpmn:incoming>f8</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:intermediateCatchEvent id="timer" name="Cada 2 s">
+      <bpmn:incoming>f5</bpmn:incoming>
+      <bpmn:incoming>f13</bpmn:incoming>
+      <bpmn:outgoing>f11</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="timer_def">
+        <bpmn:timeDuration>PT2S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="gw_estado" name="¿Estado del trabajo?">
+      <bpmn:incoming>f12</bpmn:incoming>
+      <bpmn:outgoing>f13</bpmn:outgoing>
+      <bpmn:outgoing>f14</bpmn:outgoing>
+      <bpmn:outgoing>f15</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:businessRuleTask id="t_seleccionar" name="Elegir mejor aprobado por tipo (mayor relevance_score)">
+      <bpmn:incoming>f27</bpmn:incoming>
+      <bpmn:outgoing>f20</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:businessRuleTask id="t_resumen" name="Calcular resumen de comunidad">
+      <bpmn:incoming>f20</bpmn:incoming>
+      <bpmn:outgoing>f31</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:serviceTask id="t_subir" name="Subir activos/paquete_{N}/paquete-distribucion.json">
+      <bpmn:incoming>f21</bpmn:incoming>
+      <bpmn:outgoing>f22</bpmn:outgoing>
+      <bpmn:dataOutputAssociation id="da_bucket">
+        <bpmn:targetRef>store_bucket</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
+    </bpmn:serviceTask>
+    <bpmn:intermediateThrowEvent id="end_pub" name="Paquete guardado [guardado_con_exito]">
+      <bpmn:incoming>f22</bpmn:incoming>
+      <bpmn:outgoing>f32</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="end_conexion" name="Seguimiento detenido [fallido]">
+      <bpmn:incoming>f14</bpmn:incoming>
+      <bpmn:errorEventDefinition id="end_conexion_def" />
+    </bpmn:endEvent>
+    <bpmn:serviceTask id="t_consultar" name="Consultar avance del trabajo (?desde=n)">
+      <bpmn:incoming>f11</bpmn:incoming>
+      <bpmn:outgoing>f12</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="t_revisar" name="Revisar candidato (aprobar, editar o rechazar)">
+      <bpmn:incoming>f15</bpmn:incoming>
+      <bpmn:incoming>f25</bpmn:incoming>
+      <bpmn:outgoing>f16</bpmn:outgoing>
+      <bpmn:dataOutputAssociation id="da_revisar">
+        <bpmn:targetRef>store_activos_rev</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
+    </bpmn:userTask>
+    <bpmn:userTask id="t_publicar" name="Guardar cambios en OCI">
+      <bpmn:incoming>f16</bpmn:incoming>
+      <bpmn:outgoing>f23</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:dataStoreReference id="store_bucket" name="Bucket OCI" />
+    <bpmn:subProcess id="sub" name="Procesar interacción (secuencial, una a la vez)">
+      <bpmn:incoming>f6</bpmn:incoming>
+      <bpmn:outgoing>f7</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics id="sub_mi" isSequential="true" />
+      <bpmn:startEvent id="s_start" name="Interacción del lote">
+        <bpmn:outgoing>s1</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:intermediateCatchEvent id="s_espera" name="Esperar 3 s (límite 15 RPM)">
+        <bpmn:incoming>s1</bpmn:incoming>
+        <bpmn:outgoing>s24</bpmn:outgoing>
+        <bpmn:timerEventDefinition id="s_espera_def">
+          <bpmn:timeDuration>PT3S</bpmn:timeDuration>
+        </bpmn:timerEventDefinition>
+      </bpmn:intermediateCatchEvent>
+      <bpmn:serviceTask id="s_crear" name="Crear InteraccionInterna (el campo tipo se ignora)">
+        <bpmn:incoming>s24</bpmn:incoming>
+        <bpmn:outgoing>s2</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:serviceTask id="s_analizar" name="✦ LLM · Analizar interacción">
+        <bpmn:incoming>s2</bpmn:incoming>
+        <bpmn:outgoing>s3</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:boundaryEvent id="b_analizar" name="Fallo tras reintentos (incl. 429)" attachedToRef="s_analizar">
+        <bpmn:outgoing>s4</bpmn:outgoing>
+        <bpmn:errorEventDefinition id="b_analizar_def" />
+      </bpmn:boundaryEvent>
+      <bpmn:serviceTask id="s_neutral" name="Usar análisis neutral [degradado = true]">
+        <bpmn:incoming>s4</bpmn:incoming>
+        <bpmn:outgoing>s5</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:serviceTask id="s_clasificar" name="✦ LLM · Clasificar categoría y confianza">
+        <bpmn:incoming>s3</bpmn:incoming>
+        <bpmn:incoming>s5</bpmn:incoming>
+        <bpmn:incoming>s9</bpmn:incoming>
+        <bpmn:outgoing>s6</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:exclusiveGateway id="g_prop" name="¿Hay propuesta?">
+        <bpmn:incoming>s6</bpmn:incoming>
+        <bpmn:outgoing>s7</bpmn:outgoing>
+        <bpmn:outgoing>s8</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:exclusiveGateway id="g_int" name="¿Intentos &#60; 2?">
+        <bpmn:incoming>s8</bpmn:incoming>
+        <bpmn:outgoing>s9</bpmn:outgoing>
+        <bpmn:outgoing>s10</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:businessRuleTask id="s_reglas" name="Clasificación por reglas (confianza 0.0)">
+        <bpmn:incoming>s10</bpmn:incoming>
+        <bpmn:outgoing>s11</bpmn:outgoing>
+      </bpmn:businessRuleTask>
+      <bpmn:exclusiveGateway id="g_conf" name="¿Confianza ≥ 0.75?">
+        <bpmn:incoming>s7</bpmn:incoming>
+        <bpmn:outgoing>s12</bpmn:outgoing>
+        <bpmn:outgoing>s13</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:businessRuleTask id="s_reemplazar" name="Reemplazar categoría por la de reglas">
+        <bpmn:incoming>s13</bpmn:incoming>
+        <bpmn:outgoing>s14</bpmn:outgoing>
+      </bpmn:businessRuleTask>
+      <bpmn:businessRuleTask id="s_score" name="Calcular relevance_score (0–100)">
+        <bpmn:incoming>s11</bpmn:incoming>
+        <bpmn:incoming>s12</bpmn:incoming>
+        <bpmn:incoming>s14</bpmn:incoming>
+        <bpmn:outgoing>s15</bpmn:outgoing>
+      </bpmn:businessRuleTask>
+      <bpmn:exclusiveGateway id="g_ruta" name="¿Ruta?">
+        <bpmn:incoming>s15</bpmn:incoming>
+        <bpmn:outgoing>s16</bpmn:outgoing>
+        <bpmn:outgoing>s17</bpmn:outgoing>
+        <bpmn:outgoing>s18</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:endEvent id="end_desc" name="Interacción descartada">
+        <bpmn:incoming>s16</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="end_alerta" name="Alerta de soporte (sin activos)">
+        <bpmn:incoming>s17</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:businessRuleTask id="s_formatos" name="Elegir formatos">
+        <bpmn:incoming>s18</bpmn:incoming>
+        <bpmn:outgoing>s19</bpmn:outgoing>
+      </bpmn:businessRuleTask>
+      <bpmn:serviceTask id="s_redactar" name="✦ LLM · Redactar activos">
+        <bpmn:incoming>s19</bpmn:incoming>
+        <bpmn:outgoing>s20</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:boundaryEvent id="b_redactar" name="Fallo o sin API key" attachedToRef="s_redactar">
+        <bpmn:outgoing>s21</bpmn:outgoing>
+        <bpmn:errorEventDefinition id="b_redactar_def" />
+      </bpmn:boundaryEvent>
+      <bpmn:serviceTask id="s_plantilla" name="Generar desde plantilla">
+        <bpmn:incoming>s21</bpmn:incoming>
+        <bpmn:outgoing>s22</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:serviceTask id="s_guardar" name="Guardar candidatos [pendiente]">
+        <bpmn:incoming>s20</bpmn:incoming>
+        <bpmn:incoming>s22</bpmn:incoming>
+        <bpmn:outgoing>s23</bpmn:outgoing>
+        <bpmn:dataOutputAssociation id="da_activos">
+          <bpmn:targetRef>store_activos</bpmn:targetRef>
+        </bpmn:dataOutputAssociation>
+      </bpmn:serviceTask>
+      <bpmn:endEvent id="s_end" name="Candidatos listos para revisión">
+        <bpmn:incoming>s23</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:dataStoreReference id="store_activos" name="activos_candidatos.json" />
+      <bpmn:sequenceFlow id="s1" sourceRef="s_start" targetRef="s_espera" />
+      <bpmn:sequenceFlow id="s2" sourceRef="s_crear" targetRef="s_analizar" />
+      <bpmn:sequenceFlow id="s3" name="AnalisisInterno" sourceRef="s_analizar" targetRef="s_clasificar" />
+      <bpmn:sequenceFlow id="s4" sourceRef="b_analizar" targetRef="s_neutral" />
+      <bpmn:sequenceFlow id="s5" sourceRef="s_neutral" targetRef="s_clasificar" />
+      <bpmn:sequenceFlow id="s6" sourceRef="s_clasificar" targetRef="g_prop" />
+      <bpmn:sequenceFlow id="s7" name="sí" sourceRef="g_prop" targetRef="g_conf" />
+      <bpmn:sequenceFlow id="s8" name="no" sourceRef="g_prop" targetRef="g_int" />
+      <bpmn:sequenceFlow id="s9" name="sí, reintentar" sourceRef="g_int" targetRef="s_clasificar" />
+      <bpmn:sequenceFlow id="s10" name="no" sourceRef="g_int" targetRef="s_reglas" />
+      <bpmn:sequenceFlow id="s11" sourceRef="s_reglas" targetRef="s_score" />
+      <bpmn:sequenceFlow id="s12" name="sí" sourceRef="g_conf" targetRef="s_score" />
+      <bpmn:sequenceFlow id="s13" name="no" sourceRef="g_conf" targetRef="s_reemplazar" />
+      <bpmn:sequenceFlow id="s14" sourceRef="s_reemplazar" targetRef="s_score" />
+      <bpmn:sequenceFlow id="s15" sourceRef="s_score" targetRef="g_ruta" />
+      <bpmn:sequenceFlow id="s16" name="descartar" sourceRef="g_ruta" targetRef="end_desc" />
+      <bpmn:sequenceFlow id="s17" name="revisión prioritaria" sourceRef="g_ruta" targetRef="end_alerta" />
+      <bpmn:sequenceFlow id="s18" name="generar activos" sourceRef="g_ruta" targetRef="s_formatos" />
+      <bpmn:sequenceFlow id="s19" sourceRef="s_formatos" targetRef="s_redactar" />
+      <bpmn:sequenceFlow id="s20" name="Contenido generado" sourceRef="s_redactar" targetRef="s_guardar" />
+      <bpmn:sequenceFlow id="s21" sourceRef="b_redactar" targetRef="s_plantilla" />
+      <bpmn:sequenceFlow id="s22" sourceRef="s_plantilla" targetRef="s_guardar" />
+      <bpmn:sequenceFlow id="s23" sourceRef="s_guardar" targetRef="s_end" />
+      <bpmn:sequenceFlow id="s24" sourceRef="s_espera" targetRef="s_crear" />
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="b_sub" name="Fallo del lote" attachedToRef="sub">
+      <bpmn:outgoing>f9</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="b_sub_def" />
+    </bpmn:boundaryEvent>
+    <bpmn:sequenceFlow id="f1" sourceRef="start_lote" targetRef="t_cargar" />
+    <bpmn:sequenceFlow id="f2" sourceRef="t_cargar" targetRef="t_crear" />
+    <bpmn:sequenceFlow id="f3" sourceRef="t_crear" targetRef="gw_par" />
+    <bpmn:sequenceFlow id="f4" sourceRef="gw_par" targetRef="t_iniciar" />
+    <bpmn:sequenceFlow id="f5" sourceRef="gw_par" targetRef="timer" />
+    <bpmn:sequenceFlow id="f6" sourceRef="t_iniciar" targetRef="sub" />
+    <bpmn:sequenceFlow id="f9" sourceRef="b_sub" targetRef="t_fallido" />
+    <bpmn:sequenceFlow id="f10" sourceRef="t_fallido" targetRef="end_fallido" />
+    <bpmn:sequenceFlow id="f7" sourceRef="sub" targetRef="t_completar" />
+    <bpmn:sequenceFlow id="f8" sourceRef="t_completar" targetRef="end_completado" />
+    <bpmn:sequenceFlow id="f13" name="en_cola / en_proceso" sourceRef="gw_estado" targetRef="timer" />
+    <bpmn:sequenceFlow id="f11" sourceRef="timer" targetRef="t_consultar" />
+    <bpmn:sequenceFlow id="f12" sourceRef="t_consultar" targetRef="gw_estado" />
+    <bpmn:sequenceFlow id="f14" name="fallido o 5 fallos seguidos" sourceRef="gw_estado" targetRef="end_conexion" />
+    <bpmn:sequenceFlow id="f15" name="completado" sourceRef="gw_estado" targetRef="t_revisar" />
+    <bpmn:sequenceFlow id="f20" sourceRef="t_seleccionar" targetRef="t_resumen" />
+    <bpmn:sequenceFlow id="f21" sourceRef="t_numerar" targetRef="t_subir" />
+    <bpmn:sequenceFlow id="f22" sourceRef="t_subir" targetRef="end_pub" />
+    <bpmn:sequenceFlow id="f16" name="Guardar cambios" sourceRef="t_revisar" targetRef="t_publicar" />
+    <bpmn:dataStoreReference id="store_activos_rev" name="activos_candidatos.json (PATCH por decisión)" />
+    <bpmn:exclusiveGateway id="g_pend" name="¿Hay candidatos pendientes?">
+      <bpmn:incoming>f23</bpmn:incoming>
+      <bpmn:outgoing>f24</bpmn:outgoing>
+      <bpmn:outgoing>f26</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:serviceTask id="t_alerta" name="Mostrar alerta: aprobar o rechazar todos">
+      <bpmn:incoming>f24</bpmn:incoming>
+      <bpmn:outgoing>f25</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="t_enviar" name="Enviar lote revisado (POST /storage/publish con items)">
+      <bpmn:incoming>f26</bpmn:incoming>
+      <bpmn:outgoing>f27</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="f23" sourceRef="t_publicar" targetRef="g_pend" />
+    <bpmn:sequenceFlow id="f24" name="sí" sourceRef="g_pend" targetRef="t_alerta" />
+    <bpmn:sequenceFlow id="f25" sourceRef="t_alerta" targetRef="t_revisar" />
+    <bpmn:sequenceFlow id="f26" name="no" sourceRef="g_pend" targetRef="t_enviar" />
+    <bpmn:sequenceFlow id="f27" sourceRef="t_enviar" targetRef="t_seleccionar" />
+    <bpmn:businessRuleTask id="t_numerar" name="Asignar número de paquete (Paquete N = existentes + 1)">
+      <bpmn:incoming>f31</bpmn:incoming>
+      <bpmn:outgoing>f21</bpmn:outgoing>
+      <bpmn:property id="t_numerar_prop" name="__targetRef_placeholder" />
+      <bpmn:dataInputAssociation id="di_bucket_num">
+        <bpmn:sourceRef>store_bucket</bpmn:sourceRef>
+        <bpmn:targetRef>t_numerar_prop</bpmn:targetRef>
+      </bpmn:dataInputAssociation>
+    </bpmn:businessRuleTask>
+    <bpmn:sequenceFlow id="f31" sourceRef="t_resumen" targetRef="t_numerar" />
+    <bpmn:serviceTask id="t_listar" name="Abrir Historial: listar paquetes (GET /storage/packages)">
+      <bpmn:incoming>f32</bpmn:incoming>
+      <bpmn:outgoing>f33</bpmn:outgoing>
+      <bpmn:property id="t_listar_prop" name="__targetRef_placeholder" />
+      <bpmn:dataInputAssociation id="di_bucket_hist">
+        <bpmn:sourceRef>store_bucket_hist</bpmn:sourceRef>
+        <bpmn:targetRef>t_listar_prop</bpmn:targetRef>
+      </bpmn:dataInputAssociation>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="t_dashboard" name="Mostrar dashboard (4 KPIs + 4 gráficas)">
+      <bpmn:incoming>f33</bpmn:incoming>
+      <bpmn:outgoing>f34</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="t_ver" name="Consultar paquete / Ver activo (solo lectura)">
+      <bpmn:incoming>f34</bpmn:incoming>
+      <bpmn:outgoing>f35</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="end_hist" name="Paquete consultado">
+      <bpmn:incoming>f35</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:dataStoreReference id="store_bucket_hist" name="Bucket OCI" />
+    <bpmn:sequenceFlow id="f32" sourceRef="end_pub" targetRef="t_listar" />
+    <bpmn:sequenceFlow id="f33" sourceRef="t_listar" targetRef="t_dashboard" />
+    <bpmn:sequenceFlow id="f34" sourceRef="t_dashboard" targetRef="t_ver" />
+    <bpmn:sequenceFlow id="f35" sourceRef="t_ver" targetRef="end_hist" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="diagram">
+    <bpmndi:BPMNPlane id="plane" bpmnElement="collab">
+      <bpmndi:BPMNShape id="pool_di" bpmnElement="pool" isHorizontal="true">
+        <dc:Bounds x="160" y="40" width="4980" height="1580" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_CM_di" bpmnElement="lane_CM" isHorizontal="true">
+        <dc:Bounds x="190" y="40" width="4950" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_FE_di" bpmnElement="lane_FE" isHorizontal="true">
+        <dc:Bounds x="190" y="240" width="4950" height="200" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_ORQ_di" bpmnElement="lane_ORQ" isHorizontal="true">
+        <dc:Bounds x="190" y="440" width="4950" height="180" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_A_di" bpmnElement="lane_A" isHorizontal="true">
+        <dc:Bounds x="190" y="620" width="4950" height="240" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_B_di" bpmnElement="lane_B" isHorizontal="true">
+        <dc:Bounds x="190" y="860" width="4950" height="320" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_C_di" bpmnElement="lane_C" isHorizontal="true">
+        <dc:Bounds x="190" y="1180" width="4950" height="260" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="lane_D_di" bpmnElement="lane_D" isHorizontal="true">
+        <dc:Bounds x="190" y="1440" width="4950" height="180" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="start_lote_di" bpmnElement="start_lote">
+        <dc:Bounds x="252" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="239" y="158" width="63" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_cargar_di" bpmnElement="t_cargar">
+        <dc:Bounds x="320" y="100" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_crear_di" bpmnElement="t_crear">
+        <dc:Bounds x="320" y="490" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_par_di" bpmnElement="gw_par">
+        <dc:Bounds x="495" y="505" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_iniciar_di" bpmnElement="t_iniciar">
+        <dc:Bounds x="580" y="490" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_fallido_di" bpmnElement="t_fallido">
+        <dc:Bounds x="1560" y="490" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_fallido_di" bpmnElement="end_fallido">
+        <dc:Bounds x="1742" y="512" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1726" y="548" width="69" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_completar_di" bpmnElement="t_completar">
+        <dc:Bounds x="3180" y="490" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_completado_di" bpmnElement="end_completado">
+        <dc:Bounds x="3362" y="512" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3352" y="548" width="57" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="timer_di" bpmnElement="timer">
+        <dc:Bounds x="862" y="322" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="858" y="358" width="45" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="gw_estado_di" bpmnElement="gw_estado" isMarkerVisible="true">
+        <dc:Bounds x="1155" y="315" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1091" y="290" width="59" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_seleccionar_di" bpmnElement="t_seleccionar">
+        <dc:Bounds x="3930" y="1490" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_resumen_di" bpmnElement="t_resumen">
+        <dc:Bounds x="4090" y="1490" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_subir_di" bpmnElement="t_subir">
+        <dc:Bounds x="4410" y="1490" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_pub_di" bpmnElement="end_pub">
+        <dc:Bounds x="4592" y="1512" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4560" y="1552" width="100" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_conexion_di" bpmnElement="end_conexion">
+        <dc:Bounds x="1302" y="362" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1279" y="407.5" width="81" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_consultar_di" bpmnElement="t_consultar">
+        <dc:Bounds x="960" y="300" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_revisar_di" bpmnElement="t_revisar">
+        <dc:Bounds x="3460" y="60" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_publicar_di" bpmnElement="t_publicar">
+        <dc:Bounds x="3790" y="60" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="store_bucket_di" bpmnElement="store_bucket">
+        <dc:Bounds x="4365" y="1335" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4360" y="1310" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="sub_di" bpmnElement="sub" isExpanded="true">
+        <dc:Bounds x="760" y="640" width="2360" height="780" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_start_di" bpmnElement="s_start">
+        <dc:Bounds x="792" y="702" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="774" y="672" width="72" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_espera_di" bpmnElement="s_espera">
+        <dc:Bounds x="792" y="782" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="760" y="822" width="100" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_crear_di" bpmnElement="s_crear">
+        <dc:Bounds x="860" y="680" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_analizar_di" bpmnElement="s_analizar">
+        <dc:Bounds x="1020" y="680" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_neutral_di" bpmnElement="s_neutral">
+        <dc:Bounds x="1190" y="760" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_clasificar_di" bpmnElement="s_clasificar">
+        <dc:Bounds x="1340" y="900" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g_prop_di" bpmnElement="g_prop" isMarkerVisible="true">
+        <dc:Bounds x="1535" y="915" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1507" y="963" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g_int_di" bpmnElement="g_int" isMarkerVisible="true">
+        <dc:Bounds x="1535" y="1065" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1525" y="1118" width="71" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_reglas_di" bpmnElement="s_reglas">
+        <dc:Bounds x="1660" y="1050" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g_conf_di" bpmnElement="g_conf" isMarkerVisible="true">
+        <dc:Bounds x="1855" y="915" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1847" y="965" width="66" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_reemplazar_di" bpmnElement="s_reemplazar">
+        <dc:Bounds x="1960" y="1050" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_score_di" bpmnElement="s_score">
+        <dc:Bounds x="2120" y="900" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g_ruta_di" bpmnElement="g_ruta" isMarkerVisible="true">
+        <dc:Bounds x="2315" y="915" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2321" y="903" width="37" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_desc_di" bpmnElement="end_desc">
+        <dc:Bounds x="2442" y="922" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2426" y="966" width="67" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_alerta_di" bpmnElement="end_alerta">
+        <dc:Bounds x="2562" y="862" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2538" y="898" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_formatos_di" bpmnElement="s_formatos">
+        <dc:Bounds x="2400" y="1230" width="120" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_redactar_di" bpmnElement="s_redactar">
+        <dc:Bounds x="2560" y="1230" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_plantilla_di" bpmnElement="s_plantilla">
+        <dc:Bounds x="2720" y="1330" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_guardar_di" bpmnElement="s_guardar">
+        <dc:Bounds x="2860" y="1230" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="s_end_di" bpmnElement="s_end">
+        <dc:Bounds x="3042" y="1252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3018" y="1288" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="store_activos_di" bpmnElement="store_activos">
+        <dc:Bounds x="2895" y="1055" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2848" y="1033" width="144" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b_redactar_di" bpmnElement="b_redactar">
+        <dc:Bounds x="2612" y="1292" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2595" y="1328" width="71" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b_analizar_di" bpmnElement="b_analizar">
+        <dc:Bounds x="1092" y="742" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1112" y="806" width="55" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="s1_di" bpmnElement="s1">
+        <di:waypoint x="810" y="738" />
+        <di:waypoint x="810" y="782" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s2_di" bpmnElement="s2">
+        <di:waypoint x="980" y="720" />
+        <di:waypoint x="1020" y="720" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s3_di" bpmnElement="s3">
+        <di:waypoint x="1140" y="720" />
+        <di:waypoint x="1400" y="720" />
+        <di:waypoint x="1400" y="900" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1234" y="695" width="73" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s4_di" bpmnElement="s4">
+        <di:waypoint x="1110" y="778" />
+        <di:waypoint x="1110" y="800" />
+        <di:waypoint x="1190" y="800" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s5_di" bpmnElement="s5">
+        <di:waypoint x="1250" y="840" />
+        <di:waypoint x="1250" y="940" />
+        <di:waypoint x="1340" y="940" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s6_di" bpmnElement="s6">
+        <di:waypoint x="1460" y="940" />
+        <di:waypoint x="1535" y="940" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s7_di" bpmnElement="s7">
+        <di:waypoint x="1585" y="940" />
+        <di:waypoint x="1855" y="940" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1716" y="915" width="9" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s8_di" bpmnElement="s8">
+        <di:waypoint x="1560" y="965" />
+        <di:waypoint x="1560" y="1065" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1569" y="1005" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s9_di" bpmnElement="s9">
+        <di:waypoint x="1535" y="1090" />
+        <di:waypoint x="1400" y="1090" />
+        <di:waypoint x="1400" y="980" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1437" y="1065" width="62" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s10_di" bpmnElement="s10">
+        <di:waypoint x="1585" y="1090" />
+        <di:waypoint x="1660" y="1090" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1616" y="1065" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s11_di" bpmnElement="s11">
+        <di:waypoint x="1720" y="1130" />
+        <di:waypoint x="1720" y="1160" />
+        <di:waypoint x="2210" y="1160" />
+        <di:waypoint x="2210" y="980" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s12_di" bpmnElement="s12">
+        <di:waypoint x="1905" y="940" />
+        <di:waypoint x="2120" y="940" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2008" y="915" width="9" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s13_di" bpmnElement="s13">
+        <di:waypoint x="1880" y="965" />
+        <di:waypoint x="1880" y="1090" />
+        <di:waypoint x="1960" y="1090" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1889" y="1018" width="13" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s14_di" bpmnElement="s14">
+        <di:waypoint x="2080" y="1090" />
+        <di:waypoint x="2150" y="1090" />
+        <di:waypoint x="2150" y="980" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s15_di" bpmnElement="s15">
+        <di:waypoint x="2240" y="940" />
+        <di:waypoint x="2315" y="940" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s16_di" bpmnElement="s16">
+        <di:waypoint x="2365" y="940" />
+        <di:waypoint x="2442" y="940" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2381" y="923" width="46" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s17_di" bpmnElement="s17">
+        <di:waypoint x="2340" y="915" />
+        <di:waypoint x="2340" y="880" />
+        <di:waypoint x="2562" y="880" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2347" y="846" width="87" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s18_di" bpmnElement="s18">
+        <di:waypoint x="2340" y="965" />
+        <di:waypoint x="2340" y="1270" />
+        <di:waypoint x="2400" y="1270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2352" y="1096" width="76" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s19_di" bpmnElement="s19">
+        <di:waypoint x="2520" y="1270" />
+        <di:waypoint x="2560" y="1270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s20_di" bpmnElement="s20">
+        <di:waypoint x="2680" y="1270" />
+        <di:waypoint x="2860" y="1270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2727" y="1236" width="85" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s21_di" bpmnElement="s21">
+        <di:waypoint x="2630" y="1328" />
+        <di:waypoint x="2630" y="1370" />
+        <di:waypoint x="2720" y="1370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s22_di" bpmnElement="s22">
+        <di:waypoint x="2840" y="1370" />
+        <di:waypoint x="2920" y="1370" />
+        <di:waypoint x="2920" y="1310" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s23_di" bpmnElement="s23">
+        <di:waypoint x="2980" y="1270" />
+        <di:waypoint x="3042" y="1270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="s24_di" bpmnElement="s24">
+        <di:waypoint x="828" y="800" />
+        <di:waypoint x="920" y="800" />
+        <di:waypoint x="920" y="760" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="store_activos_rev_di" bpmnElement="store_activos_rev">
+        <dc:Bounds x="3290" y="255" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3257" y="307" width="173" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="g_pend_di" bpmnElement="g_pend" isMarkerVisible="true">
+        <dc:Bounds x="3825" y="315" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3800" y="368" width="100" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_alerta_di" bpmnElement="t_alerta">
+        <dc:Bounds x="3590" y="300" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_enviar_di" bpmnElement="t_enviar">
+        <dc:Bounds x="3930" y="300" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_numerar_di" bpmnElement="t_numerar">
+        <dc:Bounds x="4250" y="1490" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_listar_di" bpmnElement="t_listar">
+        <dc:Bounds x="4690" y="300" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_dashboard_di" bpmnElement="t_dashboard">
+        <dc:Bounds x="4850" y="300" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="t_ver_di" bpmnElement="t_ver">
+        <dc:Bounds x="4850" y="100" width="120" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_hist_di" bpmnElement="end_hist">
+        <dc:Bounds x="5042" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="5020" y="162" width="80" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="store_bucket_hist_di" bpmnElement="store_bucket_hist">
+        <dc:Bounds x="4725" y="505" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="4785" y="548" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="b_sub_di" bpmnElement="b_sub">
+        <dc:Bounds x="1602" y="622" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1589" y="658" width="63" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="f1_di" bpmnElement="f1">
+        <di:waypoint x="288" y="140" />
+        <di:waypoint x="320" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f2_di" bpmnElement="f2">
+        <di:waypoint x="380" y="180" />
+        <di:waypoint x="380" y="490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f3_di" bpmnElement="f3">
+        <di:waypoint x="440" y="530" />
+        <di:waypoint x="495" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f4_di" bpmnElement="f4">
+        <di:waypoint x="545" y="530" />
+        <di:waypoint x="580" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f5_di" bpmnElement="f5">
+        <di:waypoint x="520" y="505" />
+        <di:waypoint x="520" y="340" />
+        <di:waypoint x="862" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f6_di" bpmnElement="f6">
+        <di:waypoint x="700" y="530" />
+        <di:waypoint x="730" y="530" />
+        <di:waypoint x="730" y="680" />
+        <di:waypoint x="760" y="680" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f9_di" bpmnElement="f9">
+        <di:waypoint x="1620" y="622" />
+        <di:waypoint x="1620" y="570" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f10_di" bpmnElement="f10">
+        <di:waypoint x="1680" y="530" />
+        <di:waypoint x="1742" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f7_di" bpmnElement="f7">
+        <di:waypoint x="3120" y="700" />
+        <di:waypoint x="3150" y="700" />
+        <di:waypoint x="3150" y="530" />
+        <di:waypoint x="3180" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f8_di" bpmnElement="f8">
+        <di:waypoint x="3300" y="530" />
+        <di:waypoint x="3362" y="530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f13_di" bpmnElement="f13">
+        <di:waypoint x="1180" y="315" />
+        <di:waypoint x="1180" y="270" />
+        <di:waypoint x="880" y="270" />
+        <di:waypoint x="880" y="322" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="991" y="245" width="58" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f11_di" bpmnElement="f11">
+        <di:waypoint x="898" y="340" />
+        <di:waypoint x="960" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f12_di" bpmnElement="f12">
+        <di:waypoint x="1080" y="340" />
+        <di:waypoint x="1155" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f14_di" bpmnElement="f14">
+        <di:waypoint x="1180" y="365" />
+        <di:waypoint x="1180" y="380" />
+        <di:waypoint x="1302" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1182" y="386" width="76" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f15_di" bpmnElement="f15">
+        <di:waypoint x="1205" y="340" />
+        <di:waypoint x="3520" y="340" />
+        <di:waypoint x="3520" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2334" y="315" width="57" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f20_di" bpmnElement="f20">
+        <di:waypoint x="4050" y="1530" />
+        <di:waypoint x="4090" y="1530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f21_di" bpmnElement="f21">
+        <di:waypoint x="4370" y="1530" />
+        <di:waypoint x="4410" y="1530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f22_di" bpmnElement="f22">
+        <di:waypoint x="4530" y="1530" />
+        <di:waypoint x="4592" y="1530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f16_di" bpmnElement="f16">
+        <di:waypoint x="3580" y="100" />
+        <di:waypoint x="3790" y="100" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="3652" y="66" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f23_di" bpmnElement="f23">
+        <di:waypoint x="3850" y="140" />
+        <di:waypoint x="3850" y="315" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f24_di" bpmnElement="f24">
+        <di:waypoint x="3825" y="340" />
+        <di:waypoint x="3710" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f25_di" bpmnElement="f25">
+        <di:waypoint x="3650" y="300" />
+        <di:waypoint x="3650" y="120" />
+        <di:waypoint x="3580" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f26_di" bpmnElement="f26">
+        <di:waypoint x="3875" y="340" />
+        <di:waypoint x="3930" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f27_di" bpmnElement="f27">
+        <di:waypoint x="3990" y="380" />
+        <di:waypoint x="3990" y="1490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f31_di" bpmnElement="f31">
+        <di:waypoint x="4210" y="1530" />
+        <di:waypoint x="4250" y="1530" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f32_di" bpmnElement="f32">
+        <di:waypoint x="4628" y="1530" />
+        <di:waypoint x="4660" y="1530" />
+        <di:waypoint x="4660" y="340" />
+        <di:waypoint x="4690" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f33_di" bpmnElement="f33">
+        <di:waypoint x="4810" y="340" />
+        <di:waypoint x="4850" y="340" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f34_di" bpmnElement="f34">
+        <di:waypoint x="4910" y="300" />
+        <di:waypoint x="4910" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="f35_di" bpmnElement="f35">
+        <di:waypoint x="4970" y="140" />
+        <di:waypoint x="5042" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="a_items_di" bpmnElement="a_items">
+        <dc:Bounds x="1520" y="670" width="341.47516226574083" height="43" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a_conf_di" bpmnElement="a_conf">
+        <dc:Bounds x="1940" y="866" width="170" height="46" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a_fallido_di" bpmnElement="a_fallido">
+        <dc:Bounds x="1820" y="455" width="320" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a_polling_di" bpmnElement="a_polling">
+        <dc:Bounds x="1420" y="258" width="380" height="46" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a_revisar_di" bpmnElement="a_revisar">
+        <dc:Bounds x="3100" y="70" width="331.8912587267287" height="86" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a_publicar_di" bpmnElement="a_publicar">
+        <dc:Bounds x="3940" y="70" width="401.89125295508273" height="57" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a_espera_di" bpmnElement="a_espera">
+        <dc:Bounds x="780" y="880" width="260" height="32" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a_429_di" bpmnElement="a_429">
+        <dc:Bounds x="1900" y="668" width="360" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a_desc_di" bpmnElement="a_desc">
+        <dc:Bounds x="2540" y="990" width="270" height="45" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="a_paquete_di" bpmnElement="a_paquete">
+        <dc:Bounds x="4690" y="1470" width="300" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="da_bucket_di" bpmnElement="da_bucket">
+        <di:waypoint x="4450" y="1490" />
+        <di:waypoint x="4400" y="1385" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="da_revisar_di" bpmnElement="da_revisar">
+        <di:waypoint x="3480" y="140" />
+        <di:waypoint x="3330" y="255" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="da_activos_di" bpmnElement="da_activos">
+        <di:waypoint x="2920" y="1230" />
+        <di:waypoint x="2920" y="1105" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_bucket_num_di" bpmnElement="di_bucket_num">
+        <di:waypoint x="4378" y="1385" />
+        <di:waypoint x="4330" y="1490" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="di_bucket_hist_di" bpmnElement="di_bucket_hist">
+        <di:waypoint x="4750" y="505" />
+        <di:waypoint x="4750" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="a_fallido_assoc_di" bpmnElement="a_fallido_assoc">
+        <di:waypoint x="1820" y="490" />
+        <di:waypoint x="1776" y="522" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="a_revisar_assoc_di" bpmnElement="a_revisar_assoc">
+        <di:waypoint x="3432" y="84" />
+        <di:waypoint x="3460" y="89" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="a_publicar_assoc_di" bpmnElement="a_publicar_assoc">
+        <di:waypoint x="3940" y="99" />
+        <di:waypoint x="3910" y="98" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="a_espera_assoc_di" bpmnElement="a_espera_assoc">
+        <di:waypoint x="810" y="880" />
+        <di:waypoint x="810" y="818" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="a_desc_assoc_di" bpmnElement="a_desc_assoc">
+        <di:waypoint x="2540" y="1010" />
+        <di:waypoint x="2474" y="952" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="a_paquete_assoc_di" bpmnElement="a_paquete_assoc">
+        <di:waypoint x="4690" y="1500" />
+        <di:waypoint x="4626" y="1524" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

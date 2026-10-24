@@ -1,53 +1,56 @@
-# Desarrollo y despliegue local
+# Desarrollo y despliegue
+
+El proyecto está desplegado en OCI Always Free con dos instancias: el frontend en <http://138.2.245.128:3000/> y el backend en <http://164.152.246.126:8000/docs>. Este documento cubre el entorno local. La guía de despliegue en OCI está en el [README](../README.md#guía-de-despliegue-en-oci) y el detalle de la infraestructura en [Documentacion_Equipo_D_y_Despliegue_OCI.md](Documentacion_Equipo_D_y_Despliegue_OCI.md).
 
 ## Requisitos
 
 - Docker Desktop reciente con Docker Compose v2.
-- Opcional para ejecutar pruebas sin Docker: Python 3.12.
-- Una clave de Google Gemini solo para obtener análisis reales; la suite automatizada simula las llamadas externas.
+- Opcional, para ejecutar pruebas sin Docker: Python 3.12.
+- Una clave de Google Gemini para procesar lotes. La suite automatizada no la necesita.
 
 ## Configuración de entorno
 
-El backend recibe `GEMINI_API_KEY` mediante el archivo `.env` de la raíz y Compose. `GEMINI_MODEL` es opcional; el analizador usa `gemini-2.0-flash` si no se configura. El cliente LLM se crea bajo demanda, de modo que el servicio puede iniciar sin una clave, pero el análisis caerá en el resultado neutral degradado.
+Crea un `.env` en la raíz a partir de [`.env.example`](../.env.example):
 
-Usa un `.env` local basado en [`.env.example`](../.env.example). Nunca pongas claves válidas en ejemplos, commits, issues o logs. **Situación de seguridad a resolver:** `.env` está versionado actualmente en la rama de desarrollo. Si contenía una clave real, revócala/ rótala en el proveedor; ignorar el archivo no elimina una credencial de los commits anteriores. El repositorio debe dejar de rastrear `.env` y conservar solo el ejemplo sin secretos.
+| Variable | Obligatoria | Uso |
+| --- | --- | --- |
+| `GEMINI_API_KEY` | Sí, para procesar lotes | Sin ella la API arranca, pero los lotes terminan en `fallido`. |
+| `GEMINI_MODEL` | No | Por defecto `gemini-3.8-flash`. Se recomienda `gemini-3.5-flash-lite` por su cuota gratuita mayor. |
+| `OCI_BUCKET_NAME`, `OCI_NAMESPACE`, `OCI_REGION` | No | Sobrescriben el bucket, namespace y región predeterminados. |
+| `OCI_MOCK_STORAGE` | No | `true` fuerza el almacenamiento local aunque haya credenciales de OCI. |
 
-## Backend con Compose
+`.env` está en `.gitignore`. Nunca pongas claves en ejemplos, commits, issues o logs. El contenedor lee el `.env` al crearse: después de cambiarlo, ejecuta `docker compose up -d --force-recreate backend`.
 
-Desde la raíz:
+## Levantar el proyecto
 
 ```bash
-docker compose up --build backend
+docker compose up --build            # backend en :8000 y frontend en :3000
+docker compose up --build backend    # solo la API
 ```
 
-- Base URL local: `http://localhost:8000`
+- Aplicación web: `http://localhost:3000`
 - Salud: `GET http://localhost:8000/health`
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-- Ingesta: `POST http://localhost:8000/api/v1/ingest/process`
+- Swagger UI: `http://localhost:8000/docs` · ReDoc: `http://localhost:8000/redoc`
 
-El volumen `./backend:/app` monta el código en el contenedor y Uvicorn usa `--reload` para desarrollo. Detén el servicio con `Ctrl+C`; limpia contenedores con `docker compose down`.
+El volumen `./backend:/app` monta el código en el contenedor y Uvicorn usa `--reload`. Detén los servicios con `Ctrl+C` y limpia los contenedores con `docker compose down`. Detener el backend descarta el avance de un lote en proceso, porque los trabajos viven en memoria.
 
-Compose también declara `frontend`, una aplicación Next.js con la bandeja de revisión HITL en `http://localhost:3000`. Para levantar ambos servicios usa `docker compose up --build`; los detalles de uso y solución de problemas están en [frontend/README.md](../frontend/README.md).
+**Almacenamiento en local:** sin credenciales de OCI, el backend guarda los paquetes en `backend/data/oci_mock/` con la misma estructura del bucket. Guardar cambios, el Historial y el dashboard funcionan igual. Los candidatos en revisión se guardan en `backend/data/activos_candidatos.json`. Ambos están fuera del control de versiones.
 
-## Pruebas locales
+## Pruebas
 
 ```bash
 cd backend
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 python -m pip install -r requirements.txt
 python -m pytest -q
 ```
 
-Para ejecutar los tests dentro de un backend activo:
+Dentro de un backend activo: `docker compose exec backend python -m pytest -q`.
 
-```bash
-docker compose exec backend python -m pytest -q
-```
+Los tests simulan Gemini y OCI, así que no requieren credenciales ni consumen cuota. Al añadir una ruta, incluye pruebas de éxito, de validación (por ejemplo, 422) y de fallos de dependencias externas.
 
-Los tests de API y análisis usan `TestClient` y mocks, sin depender de Gemini. Al añadir una ruta, incluye pruebas de éxito, validación (por ejemplo, 422) y errores de dependencias externas.
+## Pendiente
 
-## Estado de despliegue
-
-Este repositorio documenta el entorno local de desarrollo. La integración completa de las cuatro fases, Streamlit/HITL, persistencia OCI, configuración de producción, gestión de secretos y CI/CD son objetivos de trabajo; no asumir que están desplegados por ejecutar Compose hoy.
+- No hay CI/CD: el despliegue en OCI se actualiza a mano (`git pull` + `docker compose up -d --build`).
+- Los trabajos en segundo plano y los candidatos en revisión no son persistentes. Solo el paquete publicado en OCI es durable.

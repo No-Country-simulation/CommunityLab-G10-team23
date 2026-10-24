@@ -139,9 +139,10 @@ sequenceDiagram
         API->>Storage: Ejecutar armar_respuesta_externa(items)
         Note over Storage: Aplica regla de desempate: selecciona el activo aprobado<br/>con mayor relevance_score para cada canal
         Storage->>Storage: Serializar JSON oficial con resumen_comunidad y metadatos
-        Storage->>Bucket: UploadObject (activos/{periodo}/paquete-distribucion.json)
-        Bucket-->>Storage: HTTP 200 OK (ETag generado)
-        Storage-->>API: Retorna {status: 'exito', ruta_objeto, bucket: 'communitylab-activos-marketing'}
+        Storage->>Bucket: ListObjects (prefijo 'activos/') para asignar el número N del paquete
+        Storage->>Bucket: PutObject (activos/paquete_{N}/paquete-distribucion.json)
+        Bucket-->>Storage: HTTP 200 OK
+        Storage-->>API: Retorna {bucket, ruta_objeto, status: 'guardado_con_exito'}
         API-->>BFF: JSON con metadatos de almacenamiento en OCI
         BFF-->>UI: Notificación de guardado exitoso
         UI->>UI: Redirige automáticamente a la pestaña "Historial"
@@ -159,43 +160,31 @@ sequenceDiagram
 
 ### 3.1. Ficha Técnica de Configuración de OCI Object Storage
 
-El almacenamiento en la nube de Oracle está enlazado directamente a la cuenta del proyecto:
+El almacenamiento en la nube de Oracle está enlazado a la cuenta del proyecto:
 
-* **Bucket:** `communitylab-activos-marketing`
-* **Namespace:** `axrmv8bsyp2r`
-* **Región:** `sa-vinhedo-1` (Brasil Este - Vinhedo)
-* **Tenancy OCID:** `ocid1.tenancy.oc1..aaaaaaaaodjocls2ulpqufhbtpdnpxzn3wefspaccpaknsen4epwzaxm5cfa`
-* **User OCID:** `ocid1.user.oc1..aaaaaaaan6m4paugkmfjtngzl54kzopi2ckczv67crs7ockn7qg54a2ehi2q`
-* **Fingerprint de la clave:** `32:d5:c4:ca:1b:c8:74:c4:7e:0a:4d:ea:08:47:63:be`
-* **Ruta de clave privada en host:** `/home/opc/.oci/oci_api_key.pem`
-* **Ruta de configuración en host:** `/home/opc/.oci/config`
+* **Bucket:** `communitylab-activos-marketing` (configurable con `OCI_BUCKET_NAME`)
+* **Namespace:** `axrmv8bsyp2r` (configurable con `OCI_NAMESPACE`)
+* **Región:** `sa-vinhedo-1`, Brasil Este - Vinhedo (configurable con `OCI_REGION`)
+* **Ruta de configuración en el host:** `/home/opc/.oci/config`
+* **Ruta de la clave privada en el host:** `/home/opc/.oci/oci_api_key.pem`
 
-### 3.2. Script Automatizado de Configuración de Credenciales (`scripts/setup_oci.sh`)
+Los identificadores de la cuenta (tenancy OCID, user OCID, fingerprint) y la clave privada viven **solo** en `~/.oci/` de la instancia backend. No se versionan ni se documentan en el repositorio.
 
-Para configurar las credenciales en la máquina virtual de manera inmediata y sin errores manuales:
+### 3.2. Configuración de Credenciales en la Instancia Backend
 
-```bash
-#!/usr/bin/env bash
-set -e
-mkdir -p ~/.oci
+> [!WARNING]
+> Versiones anteriores de `scripts/setup_oci.sh` y `docs/configurar_oci.md` incluían la clave privada de la API de OCI. Esa clave debe considerarse **comprometida**: revócala en la consola de OCI (Perfil → API Keys) y usa una nueva configurada como se indica abajo.
 
-# Genera la clave privada RSA decodificada
-cat << 'EOF' | base64 -d > ~/.oci/oci_api_key.pem
-LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0t... [CLAVE EN BASE64] ...LS0tLS1FTkQgUFJJVkFURSBLRVktLS0tLQo=
-EOF
-chmod 600 ~/.oci/oci_api_key.pem
+1. En la consola de OCI, ve a Perfil → API Keys → **Add API Key**, genera la clave y descarga la clave privada (`.pem`) y el fragmento de configuración que muestra la consola.
+2. Copia ambos archivos a la instancia backend desde tu equipo:
 
-# Escribe el archivo de configuración oficial del SDK de OCI
-cat << 'EOF' > ~/.oci/config
-[DEFAULT]
-user=ocid1.user.oc1..aaaaaaaan6m4paugkmfjtngzl54kzopi2ckczv67crs7ockn7qg54a2ehi2q
-fingerprint=32:d5:c4:ca:1b:c8:74:c4:7e:0a:4d:ea:08:47:63:be
-tenancy=ocid1.tenancy.oc1..aaaaaaaaodjocls2ulpqufhbtpdnpxzn3wefspaccpaknsen4epwzaxm5cfa
-region=sa-vinhedo-1
-key_file=/home/opc/.oci/oci_api_key.pem
-EOF
-chmod 600 ~/.oci/config
-```
+   ```bash
+   ssh opc@164.152.246.126 "mkdir -p ~/.oci"
+   scp oci_api_key.pem config opc@164.152.246.126:~/.oci/
+   ssh opc@164.152.246.126 "chmod 600 ~/.oci/*"
+   ```
+
+3. En `~/.oci/config`, verifica que `key_file=/home/opc/.oci/oci_api_key.pem`. Docker Compose monta esa carpeta en el contenedor en modo solo lectura (ver §5.5).
 
 #### Comando de Verificación Inmediata en la Instancia Backend:
 ```bash
@@ -207,55 +196,72 @@ OCI Conectado! Namespace: axrmv8bsyp2r
 ```
 
 ### 3.3. Cliente Resiliente de OCI (`oci_storage.py`)
-El módulo [oci_storage.py](file:///E:/ONE/CommunityLab-G10-team23/backend/app/storage/oci_storage.py) implementa una arquitectura robusta:
-* **Detección Multi-Ruta de Credenciales:** Detecta automáticamente si se encuentra dentro del contenedor Docker (`/root/.oci/config`), en el entorno del usuario del sistema operativo (`/home/opc/.oci/config`) o si se definieron variables de entorno estándar (`OCI_CONFIG_FILE`).
-* **Fallback a Modo Simulado (Dry-Run):** Si se ejecuta en entornos de desarrollo local sin credenciales de OCI configuradas, el cliente conmuta de forma transparente al almacenamiento de prueba local (`backend/data/oci_storage_local/`) sin fallar los tests ni interrumpir el backend.
+El módulo [oci_storage.py](../backend/app/storage/oci_storage.py) busca credenciales en este orden:
+1. **Variables de entorno:** `OCI_TENANCY_OCID`, `OCI_USER_OCID`, `OCI_FINGERPRINT` y `OCI_KEY_FILE` u `OCI_KEY_CONTENT`.
+2. **Archivo de configuración:** `OCI_CONFIG_FILE`, `~/.oci/config`, `/root/.oci/config` (dentro del contenedor) o `/home/opc/.oci/config`.
+3. **Instance Principals** de la instancia de OCI.
+4. **Modo simulado:** si no encuentra credenciales válidas, o si se define `OCI_MOCK_STORAGE=true`, guarda los paquetes en disco en `backend/data/oci_mock/` con la misma estructura del bucket. Así el desarrollo local y los tests funcionan sin OCI.
+
+El cliente se crea en la primera operación de almacenamiento. El log del backend indica cuál se usó: `[OCI Storage] Conectado exitosamente…` o `[OCI Storage AVISO] … Usando almacenamiento Mock local`.
 
 ### 3.4. Contrato de Datos Oficial (`RespuestaProcesamiento`)
-El paquete que se almacena en el Bucket de OCI cumple estrictamente con el contrato externo definido para el Hackathon:
+`POST /api/v1/storage/publish` responde con el contrato externo definido para el Hackathon:
 
 ```json
 {
   "status": "exito",
   "resumen_comunidad": {
     "total_interacciones_procesadas": 5,
-    "sentimiento_predominante": "positivo",
+    "sentimiento_predominante": "Positivo",
     "temas_principales": ["LangGraph", "Docker", "OCI", "FastAPI"]
   },
   "activos_distribucion_generados": {
-    "post_linkedin": "🚀 Caso de Éxito de la Comunidad...\n\n#CommunityLab #ONE",
-    "destaque_newsletter_semanal": "Esta semana destacamos a nuestros miembros...",
-    "sugerencia_contenido_faq": "¿Cómo desplegar en OCI Always Free? Sigue estos pasos..."
+    "post_linkedin": {
+      "titulo": "Primer empleo tras el bootcamp",
+      "copy": "Hoy celebramos un logro de nuestra comunidad…\n\n#CommunityLab #ONE",
+      "canal_recomendado": "LinkedIn Oficial",
+      "potencial_engagement": "Alto"
+    },
+    "destaque_newsletter_semanal": {
+      "seccion": "Logros de la comunidad",
+      "titular": "Una integrante consigue su primer empleo como desarrolladora",
+      "resumen": "…"
+    }
   },
   "almacenamiento_oci": {
     "bucket": "communitylab-activos-marketing",
-    "ruta_objeto": "activos/2026-10-24/paquete-distribucion.json",
-    "guardado_en": "2026-10-24T10:30:00Z"
+    "ruta_objeto": "activos/paquete_3/paquete-distribucion.json",
+    "status": "guardado_con_exito"
   }
 }
 ```
 
+Cada activo es un objeto con los campos de su formato. En el ejemplo no hay `sugerencia_contenido_faq` porque ningún candidato FAQ fue aprobado (ver §3.5).
+
+El **objeto guardado en el bucket** contiene `status`, `resumen_comunidad` y `activos_distribucion_generados`, más los metadatos que usa el Historial: `nombre_paquete` ("Paquete N"), `periodo_referencia`, `origen_comunidad`, `fecha_guardado` y `casos`, que es la lista completa de interacciones revisadas con su análisis, clasificación y candidatos.
+
 ### 3.5. Regla de Negocio: Desempate por Relevancia
 Cuando un lote contiene múltiples publicaciones aprobadas para el mismo canal (por ejemplo, tres posts para LinkedIn aprobados por el revisor humano), el sistema ejecuta el criterio de desempate oficial:
 $$\text{Activo Seleccionado} = \arg\max_{c \in \text{Aprobados}} (\text{relevance\_score}_c)$$
-1. Se descartan los casos marcados como `rechazado` o `descartada`.
-2. Se evalúa el valor numérico de `relevance_score` (0 a 100).
+1. Solo compiten los candidatos en estado `aprobado`; se excluyen los `pendiente` y los `rechazado`. Las interacciones descartadas (categoría `IGNORE`) no generan candidatos, así que nunca compiten. "Descartada" es un filtro de la interfaz, no un estado del backend.
+2. Se evalúa el valor numérico de `relevance_score` (0 a 100) de la interacción de origen.
 3. Se asigna al paquete final únicamente el activo de mayor relevancia.
-4. Si un canal no tiene ningún activo aprobado, su valor en el JSON final se establece en `null` de acuerdo con la especificación de Pydantic.
+4. Si un canal no tiene ningún activo aprobado, se **omite** del JSON final: la clave no aparece, en lugar de guardarse como `null`.
 
-### 3.6. Estructura Jerárquica y Versionado en el Bucket
-Para evitar colisiones y mantener una trazabilidad histórica ordenada:
-* **Estructura base:** `activos/{YYYY-MM-DD}/paquete-distribucion.json`
-* **Versionado secuencial:** Si se guardan múltiples paquetes en el mismo día, se versionan automáticamente:
-  * `activos/2026-10-24/paquete-distribucion.json` (primer lote del día)
-  * `activos/2026-10-24/paquete-distribucion-2.json` (segundo lote)
-  * `activos/2026-10-24/paquete-distribucion-3.json` (tercer lote)
+### 3.6. Estructura y Numeración en el Bucket
+Cada guardado crea una carpeta nueva bajo `activos/`, numerada en orden:
+* `activos/paquete_1/paquete-distribucion.json` → "Paquete 1"
+* `activos/paquete_2/paquete-distribucion.json` → "Paquete 2"
+* …
+
+El número N se calcula como la cantidad de paquetes existentes + 1. Por eso dos guardados simultáneos podrían recibir el mismo número; con un único revisor no ocurre en la práctica.
 
 ### 3.7. Endpoints REST de Almacenamiento
 * **`POST /api/v1/storage/publish`:**
-  * Recibe el listado de casos aprobados/rechazados del frontend.
-  * Valida y ejecuta la regla de desempate.
-  * Sube el objeto al bucket de OCI y retorna la confirmación con metadatos.
+  * **Desde la interfaz:** recibe el lote junto con `items`, las interacciones ya revisadas. Respeta las decisiones humanas tal cual: no re-procesa ni aprueba nada por su cuenta.
+  * **Llamada directa sin `items`** (Swagger, evaluador): re-ejecuta el pipeline completo y aprueba automáticamente todos los candidatos. Es un modo de demostración del contrato oficial y no pasa por revisión humana. Lo mismo ocurre si `items` llega vacío.
+  * Ejecuta la regla de desempate, sube el objeto al bucket y retorna la confirmación.
+  * La validación "no quedan pendientes" se hace en el frontend; el backend no la repite.
 * **`GET /api/v1/storage/packages`:**
   * Lista todos los paquetes `.json` guardados en el bucket dentro del prefijo `activos/`.
 * **`GET /api/v1/storage/packages/{ruta}`:**
@@ -361,6 +367,13 @@ El Frontend implementa el patrón **Backend-For-Frontend (BFF)** con Route Handl
   ```env
   BACKEND_URL=http://164.152.246.126:8000
   ```
+  `docker-compose.yml` fija `BACKEND_URL=http://backend:8000`, el valor para cuando ambos servicios corren en la misma máquina. En la instancia frontend se sobrescribe con un `docker-compose.override.yml`:
+  ```yaml
+  services:
+    frontend:
+      environment:
+        - BACKEND_URL=http://164.152.246.126:8000
+  ```
 * **Ventaja Arquitectónica:** Elimina completamente los problemas de CORS (*Cross-Origin Resource Sharing*) en el cliente web y oculta los detalles de red interna.
 
 ### 5.5. Dockerización y Montaje Seguro de Credenciales OCI
@@ -421,8 +434,8 @@ git fetch origin
 git checkout feature/entrega-final
 git pull origin feature/entrega-final
 
-# 3. Configurar/Verificar credenciales OCI
-bash scripts/setup_oci.sh
+# 3. Verificar credenciales OCI (deben existir en ~/.oci/, ver §3.2)
+ls -l ~/.oci/
 python3 -c "import oci; c = oci.config.from_file(); client = oci.object_storage.ObjectStorageClient(c); print('OCI Conectado! Namespace:', client.get_namespace().data)"
 
 # 4. Reconstruir e iniciar contenedor del Backend
