@@ -12,15 +12,12 @@ import {
   X,
   Eye,
   FileCode,
-  Share2,
   Search,
   CheckCircle2,
-  Layers,
   BarChart3,
   Sparkles,
   MessageSquare,
   Tag,
-  Filter,
   Send,
   Calendar,
   ArrowUpDown,
@@ -30,7 +27,6 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  SlidersHorizontal,
 } from "lucide-react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { CATEGORY_LABELS } from "@/lib/review";
@@ -140,24 +136,8 @@ function formatFechaLegible(fechaStr?: string): string {
   }
 }
 
-function formatFechaSolo(fechaStr?: string): string {
-  if (!fechaStr) return "--";
-  try {
-    const d = new Date(fechaStr);
-    if (isNaN(d.getTime())) return fechaStr;
-    return d.toLocaleDateString("es-ES", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  } catch {
-    return fechaStr;
-  }
-}
-
 export function HistoryView() {
   const [packages, setPackages] = useState<PackageSummary[]>([]);
-  const [selectedPackageRuta, setSelectedPackageRuta] = useState<string>("todos");
   const [isLoadingList, setIsLoadingList] = useState(false);
   const [activeView, setActiveView] = useState<"tabla" | "dashboard">("tabla");
 
@@ -180,6 +160,9 @@ export function HistoryView() {
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
 
+  // Palabra seleccionada dentro de la nube de palabras (sin cambiar de vista)
+  const [selectedCloudWord, setSelectedCloudWord] = useState<string | null>(null);
+
   // Ordenamiento interactivo de columnas
   const [sortColumn, setSortColumn] = useState<SortColumn>("index");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -201,21 +184,16 @@ export function HistoryView() {
         setPackages(json.packages);
       }
     } catch (err) {
-      console.error("Error al listar paquetes OCI:", err);
+      console.error("Error al listar paquetes:", err);
     } finally {
       setIsLoadingList(false);
     }
   };
 
-  // Recolectar todos los casos según el paquete seleccionado (o todos los paquetes)
+  // Recolectar todos los casos consolidados de todos los paquetes registrados
   const allCases: FlatCase[] = useMemo(() => {
-    const targetPackages =
-      selectedPackageRuta === "todos"
-        ? packages
-        : packages.filter((p) => p.ruta_objeto === selectedPackageRuta);
-
     const list: FlatCase[] = [];
-    targetPackages.forEach((pkg) => {
+    packages.forEach((pkg) => {
       const casos = pkg.data?.casos || [];
       const fecha = formatFechaLegible(pkg.data?.fecha_guardado || pkg.fecha_creacion);
       const origen = pkg.data?.origen_comunidad || "General";
@@ -233,7 +211,7 @@ export function HistoryView() {
       });
     });
     return list;
-  }, [packages, selectedPackageRuta]);
+  }, [packages]);
 
   // Filtrado temporal por fechas
   const dateFilteredCases = useMemo(() => {
@@ -364,7 +342,6 @@ export function HistoryView() {
     dateRange,
     customStartDate,
     customEndDate,
-    selectedPackageRuta,
     pageSize,
   ]);
 
@@ -387,7 +364,6 @@ export function HistoryView() {
     categoryFilter !== "todas" ||
     sentimentFilter !== "todos" ||
     dateRange !== "todas" ||
-    selectedPackageRuta !== "todos" ||
     searchQuery.trim() !== "";
 
   const clearAllFilters = () => {
@@ -398,7 +374,6 @@ export function HistoryView() {
     setDateRange("todas");
     setCustomStartDate("");
     setCustomEndDate("");
-    setSelectedPackageRuta("todos");
     setSearchQuery("");
   };
 
@@ -420,17 +395,11 @@ export function HistoryView() {
 
     const sorted = Object.entries(counts)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 35);
+      .slice(0, 30);
 
     const maxWeight = sorted[0]?.[1] || 1;
     return { list: sorted, maxWeight };
   }, [dateFilteredCases]);
-
-  // Clic en término del Word Cloud para filtrar inmediatamente la tabla
-  const handleWordCloudClick = (term: string) => {
-    setSearchQuery(term);
-    setActiveView("tabla");
-  };
 
   // Métricas y estadísticas para el Dashboard
   const dashboardStats = useMemo(() => {
@@ -453,8 +422,6 @@ export function HistoryView() {
       sugerencia_contenido_faq: { total: 0, aprobados: 0, rechazados: 0 },
     };
 
-    const temaCounts: Record<string, number> = {};
-
     dateFilteredCases.forEach((c) => {
       const rel = c.oportunidad?.relevance_score ?? 0;
       sumRelevance += rel;
@@ -472,10 +439,6 @@ export function HistoryView() {
           sumSentiment += c.analisis.sentimiento_score;
           sentimentCount++;
         }
-
-        (c.analisis.temas || []).forEach((t) => {
-          temaCounts[t] = (temaCounts[t] || 0) + 1;
-        });
       }
 
       (c.activos_candidatos || []).forEach((cand) => {
@@ -516,10 +479,6 @@ export function HistoryView() {
       sentimientoPredominante = "negativo";
     }
 
-    const topTemas = Object.entries(temaCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-
     return {
       totalCasos,
       totalCandidatos,
@@ -533,29 +492,19 @@ export function HistoryView() {
       sentimientoCounts,
       relevanceBuckets,
       channelStats,
-      topTemas,
     };
   }, [dateFilteredCases]);
 
-  // Descarga del paquete seleccionado o consolidado
+  // Descarga del paquete consolidado
   const downloadCurrentJSON = () => {
-    let exportData: any;
-    let filename: string;
-
-    if (selectedPackageRuta === "todos") {
-      exportData = {
-        meta: "Consolidado histórico de paquetes persistidos en OCI",
-        total_paquetes: packages.length,
-        total_casos: allCases.length,
-        fecha_exportacion: new Date().toISOString(),
-        paquetes: packages,
-      };
-      filename = `communitylab-consolidado-${new Date().toISOString().slice(0, 10)}.json`;
-    } else {
-      const pkg = packages.find((p) => p.ruta_objeto === selectedPackageRuta);
-      exportData = pkg?.data || pkg;
-      filename = `${pkg?.nombre.toLowerCase().replace(/\s+/g, "-") || "paquete"}.json`;
-    }
+    const exportData = {
+      meta: "Consolidado de paquetes JSON",
+      total_paquetes: packages.length,
+      total_casos: allCases.length,
+      fecha_exportacion: new Date().toISOString(),
+      paquetes: packages,
+    };
+    const filename = `communitylab-consolidado-${new Date().toISOString().slice(0, 10)}.json`;
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
       type: "application/json",
@@ -599,14 +548,11 @@ export function HistoryView() {
       {/* 1. ENCABEZADO SUPERIOR */}
       <div className="bg-white border-b border-slate-200 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
         <div>
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <span>Historial y Analítica</span>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-              {packages.length} paquetes OCI
-            </span>
+          <h2 className="text-base font-bold text-slate-900">
+            Historial y Analítica
           </h2>
           <p className="text-xs text-slate-500">
-            Paquetes consolidados persistidos en Oracle Cloud Object Storage
+            Paquetes JSON consolidados
           </p>
         </div>
 
@@ -632,7 +578,7 @@ export function HistoryView() {
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            Dashboard & Word Cloud
+            Dashboard de Comunidad
           </button>
         </div>
 
@@ -642,10 +588,10 @@ export function HistoryView() {
             onClick={fetchPackagesList}
             disabled={isLoadingList}
             className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            title="Recargar paquetes desde OCI"
+            title="Actualizar datos consolidados"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isLoadingList ? "animate-spin text-indigo-600" : ""}`} />
-            Sincronizar OCI
+            Actualizar
           </button>
 
           <button
@@ -808,31 +754,6 @@ export function HistoryView() {
                 </select>
               </div>
 
-              {/* 5. Selector Opcional de Paquetes */}
-              {packages.length > 1 && (
-                <>
-                  <div className="h-5 w-px bg-slate-200" />
-                  <div className="flex items-center gap-1">
-                    <label htmlFor="package-select" className="text-xs font-medium text-slate-400">
-                      Paquete:
-                    </label>
-                    <select
-                      id="package-select"
-                      value={selectedPackageRuta}
-                      onChange={(e) => setSelectedPackageRuta(e.target.value)}
-                      className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-600 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[130px] truncate"
-                    >
-                      <option value="todos">Todos los paquetes</option>
-                      {packages.map((pkg) => (
-                        <option key={pkg.ruta_objeto} value={pkg.ruta_objeto}>
-                          {pkg.nombre}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
-
               {/* Botón para limpiar filtros */}
               {hasActiveFilters && (
                 <button
@@ -907,14 +828,14 @@ export function HistoryView() {
                           </div>
                         </th>
 
-                        {/* Columna 2: Fecha / Paquete */}
+                        {/* Columna 2: Fecha */}
                         <th
                           onClick={() => handleSort("fecha")}
                           className="py-3 px-4 cursor-pointer hover:bg-slate-100 transition"
                           title="Ordenar cronológicamente"
                         >
                           <div className="flex items-center gap-1">
-                            <span>Fecha / Paquete</span>
+                            <span>Fecha</span>
                             {sortColumn === "fecha" ? (
                               sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-indigo-600" /> : <ArrowDown className="w-3 h-3 text-indigo-600" />
                             ) : (
@@ -1004,15 +925,12 @@ export function HistoryView() {
                               </span>
                             </td>
 
-                            {/* Fecha y Paquete */}
+                            {/* Fecha */}
                             <td className="py-3 px-4 whitespace-nowrap">
                               <div className="font-medium text-slate-800">
                                 {caso.interaccion.timestamp
                                   ? formatFechaLegible(caso.interaccion.timestamp)
                                   : caso.paqueteFecha || "--"}
-                              </div>
-                              <div className="text-[11px] text-slate-400 font-mono truncate max-w-[130px]">
-                                {caso.paqueteNombre}
                               </div>
                             </td>
 
@@ -1198,13 +1116,13 @@ export function HistoryView() {
         </div>
       )}
 
-      {/* 3. VISTA: DASHBOARD & WORD CLOUD */}
+      {/* 3. VISTA: DASHBOARD DE COMUNIDAD */}
       {activeView === "dashboard" && (
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
           {/* Selector de alcance temporal dentro del dashboard */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <label htmlFor="dash-date-select" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-indigo-600" />
                   Período analizado:
@@ -1221,28 +1139,27 @@ export function HistoryView() {
                   <option value="30dias">Últimos 30 días</option>
                   <option value="personalizado">Personalizado...</option>
                 </select>
-              </div>
 
-              {packages.length > 1 && (
-                <div className="flex items-center gap-1.5">
-                  <label htmlFor="dash-pkg-select" className="text-xs font-semibold text-slate-500">
-                    Paquete:
-                  </label>
-                  <select
-                    id="dash-pkg-select"
-                    value={selectedPackageRuta}
-                    onChange={(e) => setSelectedPackageRuta(e.target.value)}
-                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-1 bg-white text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[160px] truncate"
-                  >
-                    <option value="todos">Todos los paquetes ({packages.length})</option>
-                    {packages.map((pkg) => (
-                      <option key={pkg.ruta_objeto} value={pkg.ruta_objeto}>
-                        {pkg.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                {dateRange === "personalizado" && (
+                  <div className="flex items-center gap-1.5 text-xs ml-1">
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white"
+                      title="Fecha desde"
+                    />
+                    <span className="text-slate-400">a</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white"
+                      title="Fecha hasta"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="text-xs text-slate-500">
@@ -1258,7 +1175,7 @@ export function HistoryView() {
                 <span className="text-xs font-semibold text-slate-500 block">Total Interacciones</span>
                 <span className="text-2xl font-black text-slate-900 mt-1 block">{dashboardStats.totalCasos}</span>
                 <span className="text-[11px] text-slate-400 mt-0.5 block">
-                  {packages.length} paquete(s) guardados
+                  {packages.length} paquete(s) registrados
                 </span>
               </div>
               <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
@@ -1324,57 +1241,7 @@ export function HistoryView() {
             </div>
           </div>
 
-          {/* WORD CLOUD DE LA COMUNIDAD */}
-          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-              <div>
-                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-600" />
-                  Nube de Conceptos y Tecnologías (Word Cloud)
-                </h4>
-                <p className="text-xs text-slate-500">
-                  Términos y tecnologías más discutidos por la comunidad. Haz clic en cualquier palabra para ver sus casos en la tabla.
-                </p>
-              </div>
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                {wordCloudData.list.length} conceptos clave
-              </span>
-            </div>
-
-            {wordCloudData.list.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-6 text-center">
-                No hay términos o entidades identificadas en el período actual.
-              </p>
-            ) : (
-              <div className="flex flex-wrap items-center justify-center gap-2.5 p-4 rounded-xl bg-slate-50/70 border border-slate-100 min-h-[140px]">
-                {wordCloudData.list.map(([term, freq]) => {
-                  const ratio = wordCloudData.maxWeight > 1 ? freq / wordCloudData.maxWeight : 1;
-                  let styleClass = "text-xs font-medium text-slate-700 bg-white border-slate-200";
-                  if (ratio >= 0.75) {
-                    styleClass = "text-lg sm:text-xl font-black text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100 shadow-2xs";
-                  } else if (ratio >= 0.5) {
-                    styleClass = "text-base sm:text-lg font-bold text-purple-700 bg-purple-50 border-purple-200 hover:bg-purple-100 shadow-2xs";
-                  } else if (ratio >= 0.25) {
-                    styleClass = "text-sm sm:text-base font-semibold text-sky-700 bg-sky-50 border-sky-200 hover:bg-sky-100";
-                  }
-
-                  return (
-                    <button
-                      key={term}
-                      onClick={() => handleWordCloudClick(term)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all duration-200 cursor-pointer hover:scale-105 active:scale-95 ${styleClass}`}
-                      title={`${term}: ${freq} mención(es). Clic para filtrar casos.`}
-                    >
-                      <span>#{term}</span>
-                      <span className="text-[10px] font-mono opacity-60">({freq})</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* GRÁFICAS VISUALES INTERACTIVAS */}
+          {/* GRÁFICAS VISUALES INTERACTIVAS (GRID 2x2) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Gráfica 1: Distribución de Sentimiento */}
             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
@@ -1498,47 +1365,93 @@ export function HistoryView() {
               </div>
             </div>
 
-            {/* Gráfica 3: Top Temas Más Mencionados */}
+            {/* Gráfica 3: Temas y Conceptos de la Comunidad (Nube Interactiva que reemplaza a Top Temas) */}
             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">Top Temas de la Comunidad</h4>
-                  <p className="text-xs text-slate-500">Conceptos con mayor frecuencia</p>
+                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                    Temas y Conceptos de la Comunidad
+                  </h4>
+                  <p className="text-xs text-slate-500">Términos con mayor frecuencia en las consultas</p>
                 </div>
-                <Tag className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                  {wordCloudData.list.length} temas
+                </span>
               </div>
 
-              {dashboardStats.topTemas.length === 0 ? (
-                <p className="text-xs text-slate-400 italic py-4 text-center">
+              {wordCloudData.list.length === 0 ? (
+                <p className="text-xs text-slate-400 italic py-6 text-center">
                   No hay temas registrados en el período actual.
                 </p>
               ) : (
-                <div className="space-y-2.5 pt-1">
-                  {dashboardStats.topTemas.map(([tema, freq], i) => {
-                    const maxFreq = dashboardStats.topTemas[0]?.[1] || 1;
-                    const pct = Math.round((freq / maxFreq) * 100);
-                    return (
-                      <div key={tema} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs font-semibold">
-                          <span className="text-slate-800 flex items-center gap-1.5">
-                            <span className="w-4 h-4 rounded-full bg-indigo-50 text-indigo-700 text-[10px] flex items-center justify-center font-bold">
-                              {i + 1}
-                            </span>
-                            #{tema}
+                <div className="space-y-3 pt-1">
+                  <div className="flex flex-wrap items-center justify-center gap-2 p-3 bg-slate-50/70 rounded-xl border border-slate-100 min-h-[160px]">
+                    {wordCloudData.list.map(([term, freq]) => {
+                      const ratio = wordCloudData.maxWeight > 1 ? freq / wordCloudData.maxWeight : 1;
+                      const isSelected = selectedCloudWord === term;
+                      let badgeStyle = "text-xs font-medium text-slate-700 bg-white border-slate-200 hover:border-slate-300";
+                      if (ratio >= 0.75) {
+                        badgeStyle = "text-sm sm:text-base font-bold text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100 shadow-2xs";
+                      } else if (ratio >= 0.45) {
+                        badgeStyle = "text-xs sm:text-sm font-semibold text-purple-700 bg-purple-50 border-purple-200 hover:bg-purple-100";
+                      } else if (ratio >= 0.25) {
+                        badgeStyle = "text-xs font-medium text-sky-700 bg-sky-50 border-sky-200 hover:bg-sky-100";
+                      }
+
+                      return (
+                        <button
+                          key={term}
+                          onClick={() => setSelectedCloudWord(isSelected ? null : term)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-150 cursor-pointer ${
+                            isSelected
+                              ? "ring-2 ring-indigo-500 bg-indigo-600 text-white border-indigo-600 shadow-sm scale-105"
+                              : badgeStyle
+                          }`}
+                          title={`#${term}: ${freq} mención(es)`}
+                        >
+                          <span>#{term}</span>
+                          <span className={`text-[10px] font-mono ${isSelected ? "text-indigo-100" : "opacity-60"}`}>
+                            ({freq})
                           </span>
-                          <span className="text-indigo-600 font-mono">
-                            {freq} mención{freq !== 1 ? "es" : ""}
-                          </span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-indigo-500 rounded-full transition-all duration-500"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Detalle interactivo del tema seleccionado sin salir del dashboard */}
+                  {selectedCloudWord && (
+                    <div className="p-2.5 rounded-lg bg-indigo-50/80 border border-indigo-100 flex items-center justify-between text-xs text-indigo-900 animate-in fade-in duration-150">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span>
+                          <strong>#{selectedCloudWord}</strong> tiene{" "}
+                          <strong>
+                            {wordCloudData.list.find(([t]) => t === selectedCloudWord)?.[1] || 1}
+                          </strong>{" "}
+                          menciones en este período.
+                        </span>
                       </div>
-                    );
-                  })}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSearchQuery(selectedCloudWord);
+                            setActiveView("tabla");
+                          }}
+                          className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer"
+                        >
+                          Ver en tabla →
+                        </button>
+                        <button
+                          onClick={() => setSelectedCloudWord(null)}
+                          className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                          title="Cerrar detalle"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1629,8 +1542,8 @@ export function HistoryView() {
                       {inspectCase.interaccion.canal}
                     </span>
                   </h4>
-                  <p className="text-xs text-slate-500 font-mono">
-                    ID: {inspectCase.interaccion.id} · Paquete: {inspectCase.paqueteNombre}
+                  <p className="text-xs text-slate-500">
+                    {inspectCase.paqueteFecha ? `Fecha de registro: ${inspectCase.paqueteFecha}` : "Interacción de la comunidad"}
                   </p>
                 </div>
               </div>
@@ -1975,9 +1888,6 @@ export function HistoryView() {
 
                             {tipo === "sugerencia_contenido_faq" && (
                               <div className="space-y-3">
-                                <div className="flex items-center justify-between text-xs text-slate-500 border-b border-slate-100 pb-2">
-                                  <span>Status: <strong className="text-slate-800">{content.status || "derivado_a_mentoria"}</strong></span>
-                                </div>
                                 <div>
                                   <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
                                     Tema / Pregunta
