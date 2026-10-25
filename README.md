@@ -2,10 +2,48 @@
 
 ## Integrantes
 
-| <img src="https://github.com/iamalonso.png" width="80"> | <img src="https://github.com/lunajulio.png" width="80"> | <img src="https://github.com/alanbubu18-design.png" width="80"> | <img src="https://github.com/alejandramcr.png" width="80"> | <img src="https://github.com/Aldo-CL.png" width="80"> | <img src="https://github.com/carmenNieves6478.png" width="80"> | <img src="https://github.com/claudio-hcd.png" width="80"> |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| [@iamalonso](https://github.com/iamalonso) | [@lunajulio](https://github.com/lunajulio) | [@alanbubu18-design](https://github.com/alanbubu18-design) | [@alejandramcr](https://github.com/alejandramcr) | [@Aldo-CL](https://github.com/Aldo-CL) | [@carmenNieves6478](https://github.com/carmenNieves6478) | [@claudio-hcd](https://github.com/claudio-hcd) |
-| ![](https://img.shields.io/badge/Project_Manager-6F42C1?style=flat-square) | ![](https://img.shields.io/badge/Backend_Lead-2EA44F?style=flat-square) | ![](https://img.shields.io/badge/Backend_dev-2EA44F?style=flat-square) | ![](https://img.shields.io/badge/Backend_dev-2EA44F?style=flat-square) | ![](https://img.shields.io/badge/Cloud_Engineer-0078D4?style=flat-square) | ![](https://img.shields.io/badge/Cloud_Engineer-0078D4?style=flat-square) | ![](https://img.shields.io/badge/Frontend_dev-E34F26?style=flat-square) |
+<table align="center">
+  <tr>
+    <td align="center" width="170">
+      <img src="https://github.com/iamalonso.png" width="80" height="80"><br>
+      <a href="https://github.com/iamalonso">@iamalonso</a><br>
+      <img src="https://img.shields.io/badge/Project_Manager-6F42C1?style=flat-square">
+    </td>
+    <td align="center" width="170">
+      <img src="https://github.com/lunajulio.png" width="80" height="80"><br>
+      <a href="https://github.com/lunajulio">@lunajulio</a><br>
+      <img src="https://img.shields.io/badge/Backend_Lead-2EA44F?style=flat-square">
+    </td>
+    <td align="center" width="170">
+      <img src="https://github.com/alanbubu18-design.png" width="80" height="80"><br>
+      <a href="https://github.com/alanbubu18-design">@alanbubu18-design</a><br>
+      <img src="https://img.shields.io/badge/Backend_Dev-2EA44F?style=flat-square">
+    </td>
+    <td align="center" width="170">
+      <img src="https://github.com/alejandramcr.png" width="80" height="80"><br>
+      <a href="https://github.com/alejandramcr">@alejandramcr</a><br>
+      <img src="https://img.shields.io/badge/Backend_Dev-2EA44F?style=flat-square">
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="170">
+      <img src="https://github.com/Aldo-CL.png" width="80" height="80"><br>
+      <a href="https://github.com/Aldo-CL">@Aldo-CL</a><br>
+      <img src="https://img.shields.io/badge/Cloud_Engineer-0078D4?style=flat-square">
+    </td>
+    <td align="center" width="170">
+      <img src="https://github.com/carmenNieves6478.png" width="80" height="80"><br>
+      <a href="https://github.com/carmenNieves6478">@carmenNieves6478</a><br>
+      <img src="https://img.shields.io/badge/Cloud_Engineer-0078D4?style=flat-square">
+    </td>
+    <td align="center" width="170">
+      <img src="https://github.com/claudio-hcd.png" width="80" height="80"><br>
+      <a href="https://github.com/claudio-hcd">@claudio-hcd</a><br>
+      <img src="https://img.shields.io/badge/Frontend_Dev-E34F26?style=flat-square">
+    </td>
+    <td></td>
+  </tr>
+</table>
 
 
 
