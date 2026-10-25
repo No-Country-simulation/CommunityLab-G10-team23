@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { X, Check, Clock, Copy, AlertTriangle, Ban } from "lucide-react";
+import { X, Check, Clock, Copy, AlertTriangle, Ban, Send } from "lucide-react";
 import { ActivoCandidato, EstadoAprobacion, ResultadoPipelineItem } from "@/types/backend";
 import { CATEGORY_LABELS, FORMATS, copyText, fieldText, isAlert, isDiscarded } from "@/lib/review";
+import { copyToClipboard } from "@/lib/clipboard";
 import { StatusBadge } from "./ReviewTable";
 
 interface InteractionDetailModalProps {
@@ -91,9 +92,25 @@ export function InteractionDetailModal({
     }
   };
 
-  const copy = (c: ActivoCandidato) => {
+  const copy = async (c: ActivoCandidato) => {
     const merged = { ...c.contenido, ...drafts[c.candidato_id] };
-    navigator.clipboard.writeText(copyText(c.tipo_activo, merged)).then(onCopied);
+    const ok = await copyToClipboard(copyText(c.tipo_activo, merged));
+    if (ok) {
+      onCopied();
+    }
+  };
+
+  const handlePublish = async (c: ActivoCandidato) => {
+    if (!onPublish) return;
+    if (isDirty(c) || c.estado_aprobacion !== "aprobado") {
+      const ok = await onSave(item, c, "aprobado", { ...c.contenido, ...drafts[c.candidato_id] });
+      if (ok) {
+        setDrafts(({ [c.candidato_id]: _, ...rest }) => rest);
+        onPublish({ ...c, estado_aprobacion: "aprobado", contenido: { ...c.contenido, ...drafts[c.candidato_id] } });
+      }
+    } else {
+      onPublish(c);
+    }
   };
 
   const { interaccion, analisis, oportunidad, enrutamiento } = item;
@@ -266,6 +283,16 @@ export function InteractionDetailModal({
         {active && (
           <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-t border-slate-200 bg-white">
             <FooterButton onClick={() => copy(active)} icon={<Copy className="w-4 h-4" />} label="Copiar" />
+
+            {onPublish && (
+              <FooterButton
+                onClick={() => handlePublish(active)}
+                disabled={saving}
+                icon={<Send className="w-4 h-4 text-sky-600" />}
+                label={`Publicar en ${FORMATS[active.tipo_activo].channel}`}
+                className="text-sky-700 border-sky-300 bg-sky-50/80 hover:bg-sky-100 font-semibold shadow-2xs"
+              />
+            )}
 
             <div className="ml-auto flex flex-wrap gap-2">
               {active.estado_aprobacion !== "rechazado" && (

@@ -269,39 +269,62 @@ El número N se calcula como la cantidad de paquetes existentes + 1. Por eso dos
 
 ---
 
-## 4. Historial Interactivo y Dashboard de Comunidad (Frontend)
+## 4. Historial Interactivo, Analítica y Dashboard de Comunidad (Frontend)
 
-El Equipo D diseñó y construyó la interfaz de usuario en Next.js 15:
+El Equipo D diseñó y construyó la interfaz de usuario en Next.js 15 incorporando analítica escalable, ergonomía editorial y visualización avanzada:
 
-### 4.1. Filtros Jerárquicos en 2 Niveles
-Tanto en la **Bandeja de revisión** como en el **Historial de activos**, los filtros están organizados en dos niveles fijos para máxima ergonomía visual:
-* **Nivel 1 (Pestañas de Canales):**
-  * `Todos`, `LinkedIn`, `Newsletter`, `FAQ` y `Alertas de soporte`.
-* **Nivel 2 (Estados y Filtros Secundarios):**
-  * Botones de estado: `Pendientes`, `Aprobados`, `Rechazados` y `Descartadas` (los botones se mantienen estables y visibles incluso al alternar canales o alertas).
-  * En el Historial, incluye además un selector desplegable de paquetes de OCI y buscador de texto por contenido o ID.
+### 4.1. Filtros Jerárquicos en 2 Niveles y Filtrado Temporal Escalable
+Para resolver la escalabilidad histórica más allá de la segmentación por paquetes individuales:
+* **Nivel 1 (Pestañas de Canales de Salida):**
+  * `Todos los Canales`, `LinkedIn`, `Newsletter`, `FAQ` y `Alertas de soporte`.
+* **Nivel 2 (Filtros de Período, Estados, Categorías y Búsqueda):**
+  * **Filtro Temporal por Rango de Fechas:** Permite consultar `Todas las fechas (Consolidado total)`, `Hoy`, `Últimos 7 días`, `Últimos 30 días` o un rango `Personalizado` con selectores de fecha `Desde` y `Hasta`.
+  * **Filtro por Estado:** Botones `Todos`, `Aprobados` y `Rechazados`.
+  * **Filtro por Categoría:** Selector desplegable taxonómico (`Caso de éxito`, `FAQ`, `Contenido educativo`, `Alerta de soporte`, `Post social`, `Destacado de comunidad`).
+  * **Filtro por Sentimiento:** Selector de polaridad (`Todos`, `Positivo`, `Neutral`, `Negativo`).
+  * **Selector Secundario de Paquetes:** Permite auditar paquetes `.json` específicos de OCI o analizar el universo consolidado.
+  * **Buscador Predictivo con Limpieza Rápida:** Búsqueda textual por autor, canal, texto o `#tema`.
+  * **Botón "Limpiar filtros":** Restablece todos los parámetros a su estado predeterminado con un solo clic.
 
-### 4.2. Modal de Inspección "Ver activo" (Modo Solo Lectura)
-Al hacer clic en el botón **"Ver activo"** de cualquier fila del historial:
-* Se despliega un diálogo emergente no editable que previene modificaciones accidentales sobre datos ya almacenados.
-* Contiene pestañas para inspeccionar:
-  1. *Contenido:* Texto generado, canal destino, justificación editorial y temas asociados.
-  2. *Interacción Original:* Mensaje en bruto de la comunidad, autor, plataforma de origen y fecha.
-  3. *Análisis IA:* Score de relevancia (0-100), polaridad de sentimiento, entidades detectadas y categoría asignada.
-* Muestra el badge oficial del estado del caso (`APROBADO`, `RECHAZADO` o `DESCARTADA`).
+### 4.2. Columna Correlativa (#), Ordenamiento Interactivo y Paginación
+* **Columna Inicial `#`:** Muestra la numeración correlativa de cada fila dentro del universo filtrado (`#1, #2, #3...`) con el total de registros en la cabecera.
+* **Ordenamiento de Columnas (Sorting Interactivo):**
+  * Cabeceras clickeables con indicadores dinámicos de dirección (`▲` / `▼`):
+    * **Autor:** Orden alfabético (A $\rightarrow$ Z / Z $\rightarrow$ A).
+    * **Fecha:** Orden cronológico (Más reciente $\rightarrow$ Más antiguo).
+    * **Relevancia:** Score numérico editorial (Mayor $\rightarrow$ Menor).
+    * **Sentimiento:** Score de polaridad (+1.00 $\rightarrow$ -1.00).
+    * **`#`:** Orden correlativo ascendente o descendente.
+* **Paginación Inteligente:**
+  * Selector de tamaño de página: `10`, `15`, `25`, `50` o `Todos` por página (por defecto: `15`).
+  * Indicador de rango: *"Mostrando 1 a 15 de 142 casos (filtrados de 142 totales)"*.
+  * Botones de navegación: `⏮ Primera`, `◀ Anterior`, número de página activa, `Siguiente ▶`, `Última ⏭`.
 
-### 4.3. Dashboard de Comunidad y Analítica Visual
-Ubicado en la parte superior del historial, se alimenta dinámicamente de los datos reales del paquete consultado:
+### 4.3. Word Cloud (Nube de Palabras / Conceptos Clave) en el Dashboard
+Diseñado para ofrecer una visión inmediata de los temas y tecnologías más discutidos por la comunidad:
+* **Extracción Ponderada:** Agrupa y cuenta las frecuencias de los `temas` y `entidades` detectados por Gemini (#LangGraph, #Docker, #FastAPI, #Python, #NextJS, etc.) correspondientes al período seleccionado.
+* **Escala Tipográfica Dinámica:** Asigna tamaños de fuente y estilos visuales proporcionales a la frecuencia de aparición (desde `text-xs` hasta `text-2xl font-black` con colores escalonados).
+* **Interacción Clic para Filtrar:** Al hacer clic en cualquier palabra clave de la nube, el sistema aplica automáticamente ese término en el buscador de la tabla y redirige a la "Tabla de Casos" para inspeccionar las interacciones asociadas.
+
+### 4.4. Dashboard de Comunidad y KPIs Estadísticos
 * **4 KPIs Principales:**
-  1. *Total Interacciones:* Volumen procesado del lote.
+  1. *Total Interacciones:* Volumen procesado del lote/período.
   2. *Tasa de Aprobación:* Porcentaje de aprobación editorial de la IA (Aprobados vs Candidatos).
   3. *Sentimiento Predominante:* Tono emocional de la comunidad con badge de color y score promedio (-1.00 a +1.00).
   4. *Relevancia Media:* Promedio sobre 100 de la calidad editorial de las interacciones.
 * **4 Gráficas Estadísticas Interactivas:**
   1. *Distribución de Sentimiento:* Barras proporcionales con conteos (Positivo en verde esmeralda, Neutral en ámbar, Negativo en rosa).
   2. *Activos por Canal y Estado:* Comparativa visual de LinkedIn, Newsletter y FAQ mostrando el desglose de aprobados vs rechazados.
-  3. *Top Temas de la Comunidad:* Ranking ordenado por frecuencia de mención de conceptos clave (#LangGraph, #Docker, #FastAPI, etc.).
+  3. *Top Temas de la Comunidad:* Ranking ordenado por frecuencia de mención de conceptos clave.
   4. *Niveles de Relevancia Editorial:* Segmentación por rangos (Alta 70-100, Media 40-69, Baja 0-39).
+
+### 4.5. Modal de Inspección "Ver activo" y Reset de Entrada
+* **Modal "Ver activo" (Modo Solo Lectura):**
+  * Diálogo emergente no destructivo con pestañas: *Detalle Activo* (interacción, análisis IA, clasificación y contenido generado) y *Ver JSON* (objeto JSON serializado de OCI).
+  * Botón **"Copiar contenido"** con fallback resiliente para entornos HTTP e IP pública.
+  * Botón **"Publicar en LinkedIn"** con pre-aprobación automática y apertura directa a la ventana de compartir de LinkedIn.
+* **Reset Automático de la Bandeja de Revisión:**
+  * Al hacer clic en *"Guardar cambios"* y confirmarse el guardado exitoso en OCI Object Storage, el estado de la bandeja de entrada se resetea por completo (`solicitud`, `result`, `job` en `null`), garantizando que al regresar a la vista de revisión el panel esté limpio y listo para recibir un nuevo lote.
 
 ---
 
