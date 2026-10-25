@@ -1,7 +1,13 @@
 # CommunityLab · Grupo 10 · Equipo 23
 
 ## Integrantes
-Lista con integrantes
+
+| <img src="https://github.com/iamalonso.png" width="80"> | <img src="https://github.com/lunajulio.png" width="80"> | <img src="https://github.com/alanbubu18-design.png" width="80"> | <img src="https://github.com/alejandramcr.png" width="80"> | <img src="https://github.com/Aldo-CL.png" width="80"> | <img src="https://github.com/carmenNieves6478.png" width="80"> | <img src="https://github.com/claudio-hcd.png" width="80"> |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| [@iamalonso](https://github.com/iamalonso) | [@lunajulio](https://github.com/lunajulio) | [@alanbubu18-design](https://github.com/alanbubu18-design) | [@alejandramcr](https://github.com/alejandramcr) | [@Aldo-CL](https://github.com/Aldo-CL) | [@carmenNieves6478](https://github.com/carmenNieves6478) | [@claudio-hcd](https://github.com/claudio-hcd) |
+| ![](https://img.shields.io/badge/Project_Manager-6F42C1?style=flat-square) | ![](https://img.shields.io/badge/Backend_Lead-2EA44F?style=flat-square) | ![](https://img.shields.io/badge/Backend_dev-2EA44F?style=flat-square) | ![](https://img.shields.io/badge/Backend_dev-2EA44F?style=flat-square) | ![](https://img.shields.io/badge/Cloud_Engineer-0078D4?style=flat-square) | ![](https://img.shields.io/badge/Cloud_Engineer-0078D4?style=flat-square) | ![](https://img.shields.io/badge/Frontend_dev-E34F26?style=flat-square) |
+
+
 
 ## Problema
 Las empresas y agencias que gestionan comunidades digitales (en plataformas como Discord, LinkedIn, Slack, entre otras) se enfrentan a un cuello de botella operativo: la curaduría manual de contenidos. Los especialistas de marketing deben revisar una abrumadora cantidad de mensajes diarios para identificar manualmente qué interacciones de los usuarios tienen el potencial de convertirse en publicaciones de alto impacto. Este trabajo exige tomar decisiones complejas de forma repetitiva: filtrar lo más atractivo, definir el formato ideal (un testimonio, una noticia o una duda técnica) y elegir la plataforma de destino adecuada.
@@ -10,7 +16,7 @@ Las empresas y agencias que gestionan comunidades digitales (en plataformas como
 El alto volumen de datos e interacciones que se generan de forma orgánica en las comunidades hace que la revisión manual sea insostenible. Esto genera un alto riesgo de dejar pasar contenido valioso, como historias de éxito o testimonios de usuarios, debido a la fatiga operativa y la pesada carga de trabajo que implica evaluar cada interacción una por una.
 
 ## Solución propuesta
-Proponemos CommunityLab, un motor inteligente impulsado por Inteligencia Artificial (Grandes Modelos de Lenguaje como Google Gemini) diseñado para automatizar la transformación de comunidades digitales. El sistema permite cargar un archivo JSON con las interacciones de la comunidad para que la IA analice, procese y extraiga métricas objetivas de cada mensaje (sentimiento, categoría, relevancia y resúmenes), convirtiéndolos automáticamente en activos de marketing listos para publicar en LinkedIn o Newsletters.
+La solución propuesta se enmarca en CommunityLab, un motor inteligente impulsado por Inteligencia Artificial (Grandes Modelos de Lenguaje como Google Gemini) diseñado para automatizar la transformación de comunidades digitales. El sistema permite cargar un archivo JSON con las interacciones de la comunidad para que la IA analice, procese y extraiga métricas objetivas de cada mensaje (sentimiento, categoría, relevancia y resúmenes), convirtiéndolos automáticamente en activos de marketing listos para publicar en LinkedIn o Newsletters e incluso registros FAQ.
 
 ### Arquitectura del sistema
 <img width="80%" alt="image" src="https://github.com/user-attachments/assets/33a155ed-b514-414f-9bd0-a1606d5fadc7" />
