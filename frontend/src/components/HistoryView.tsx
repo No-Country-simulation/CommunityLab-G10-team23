@@ -366,6 +366,28 @@ export function HistoryView() {
     dateRange !== "todas" ||
     searchQuery.trim() !== "";
 
+  // Conteos dinámicos para los filtros de estado (Nivel 2)
+  const statusCounts = useMemo(() => {
+    let todos = 0;
+    let aprobados = 0;
+    let rechazados = 0;
+
+    dateFilteredCases.forEach((c) => {
+      if (channelFilter !== "todos") {
+        const hasChannel = (c.activos_candidatos || []).some(
+          (cand) => cand.tipo_activo === channelFilter
+        );
+        if (!hasChannel) return;
+      }
+      todos++;
+      const statuses = (c.activos_candidatos || []).map((cand) => cand.estado_aprobacion);
+      if (statuses.includes("aprobado")) aprobados++;
+      if (statuses.includes("rechazado")) rechazados++;
+    });
+
+    return { todos, aprobados, rechazados };
+  }, [dateFilteredCases, channelFilter]);
+
   const clearAllFilters = () => {
     setChannelFilter("todos");
     setStatusFilter("todos");
@@ -635,8 +657,75 @@ export function HistoryView() {
             })}
           </nav>
 
-          {/* Nivel 2: Filtros Temporales, Estados, Categorías y Búsqueda */}
-          <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          {/* Nivel 2: Estado de aprobación (Todos, Aprobados, Rechazados) */}
+          <div className="bg-white border-b border-slate-200 px-6 py-2 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-500 mr-1">Estado:</span>
+              <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="group">
+                <button
+                  onClick={() => setStatusFilter("todos")}
+                  className={`text-xs px-3 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                    statusFilter === "todos"
+                      ? "bg-white text-indigo-700 font-bold shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span>Todos</span>
+                  <span
+                    className={`text-[11px] ${
+                      statusFilter === "todos" ? "text-indigo-600 font-bold" : "text-slate-400"
+                    }`}
+                  >
+                    ({statusCounts.todos})
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter("aprobados")}
+                  className={`text-xs px-3 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                    statusFilter === "aprobados"
+                      ? "bg-white text-emerald-700 font-bold shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                  <span>Aprobados</span>
+                  <span
+                    className={`text-[11px] ${
+                      statusFilter === "aprobados" ? "text-emerald-700 font-bold" : "text-slate-400"
+                    }`}
+                  >
+                    ({statusCounts.aprobados})
+                  </span>
+                </button>
+                <button
+                  onClick={() => setStatusFilter("rechazados")}
+                  className={`text-xs px-3 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                    statusFilter === "rechazados"
+                      ? "bg-white text-rose-700 font-bold shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
+                  <span>Rechazados</span>
+                  <span
+                    className={`text-[11px] ${
+                      statusFilter === "rechazados" ? "text-rose-700 font-bold" : "text-slate-400"
+                    }`}
+                  >
+                    ({statusCounts.rechazados})
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-500">
+              Mostrando <strong className="text-slate-800">{filteredCases.length}</strong> de{" "}
+              <strong className="text-slate-800">{dateFilteredCases.length}</strong> casos registrados
+            </div>
+          </div>
+
+          {/* Nivel 3: Filtros por Período, Categoría, Sentimiento y Búsqueda */}
+          <div className="bg-slate-50/70 border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-3 flex-wrap">
               {/* 1. Selector de Rango de Fechas */}
               <div className="flex items-center gap-1.5">
@@ -680,43 +769,7 @@ export function HistoryView() {
 
               <div className="h-5 w-px bg-slate-200" />
 
-              {/* 2. Filtro por Estado (Todos, Aprobados, Rechazados) */}
-              <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="group">
-                <button
-                  onClick={() => setStatusFilter("todos")}
-                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
-                    statusFilter === "todos"
-                      ? "bg-white text-indigo-700 font-bold shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Todos
-                </button>
-                <button
-                  onClick={() => setStatusFilter("aprobados")}
-                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
-                    statusFilter === "aprobados"
-                      ? "bg-white text-emerald-700 font-bold shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Aprobados
-                </button>
-                <button
-                  onClick={() => setStatusFilter("rechazados")}
-                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
-                    statusFilter === "rechazados"
-                      ? "bg-white text-rose-700 font-bold shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  Rechazados
-                </button>
-              </div>
-
-              <div className="h-5 w-px bg-slate-200" />
-
-              {/* 3. Filtro por Categoría */}
+              {/* 2. Filtro por Categoría */}
               <div className="flex items-center gap-1">
                 <label htmlFor="cat-filter" className="text-xs font-medium text-slate-500">
                   Categoría:
@@ -736,7 +789,7 @@ export function HistoryView() {
                 </select>
               </div>
 
-              {/* 4. Filtro por Sentimiento */}
+              {/* 3. Filtro por Sentimiento */}
               <div className="flex items-center gap-1">
                 <label htmlFor="sent-filter" className="text-xs font-medium text-slate-500">
                   Sentimiento:
