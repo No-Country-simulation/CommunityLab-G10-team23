@@ -3,11 +3,29 @@
 ## Integrantes
 Lista con integrantes
 
-- Bienvenida (porqué, quién, qué, cómo)
-- diagrama de alto nivel de la solucion
-- arquitectura - flujo
-- Cómo usarlo (pantallazos, instrucciones, gif animado)
+## Problema
+Las empresas y agencias que gestionan comunidades digitales (en plataformas como Discord, LinkedIn, Slack, entre otras) se enfrentan a un cuello de botella operativo: la curaduría manual de contenidos. Los especialistas de marketing deben revisar una abrumadora cantidad de mensajes diarios para identificar manualmente qué interacciones de los usuarios tienen el potencial de convertirse en publicaciones de alto impacto. Este trabajo exige tomar decisiones complejas de forma repetitiva: filtrar lo más atractivo, definir el formato ideal (un testimonio, una noticia o una duda técnica) y elegir la plataforma de destino adecuada.
 
+## Motivación
+El alto volumen de datos e interacciones que se generan de forma orgánica en las comunidades hace que la revisión manual sea insostenible. Esto genera un alto riesgo de dejar pasar contenido valioso, como historias de éxito o testimonios de usuarios, debido a la fatiga operativa y la pesada carga de trabajo que implica evaluar cada interacción una por una.
+
+## Solución propuesta
+Proponemos CommunityLab, un motor inteligente impulsado por Inteligencia Artificial (Grandes Modelos de Lenguaje como Google Gemini) diseñado para automatizar la transformación de comunidades digitales. El sistema permite cargar un archivo JSON con las interacciones de la comunidad para que la IA analice, procese y extraiga métricas objetivas de cada mensaje (sentimiento, categoría, relevancia y resúmenes), convirtiéndolos automáticamente en activos de marketing listos para publicar en LinkedIn o Newsletters.
+
+### Arquitectura del sistema
+<img width="80%" alt="image" src="https://github.com/user-attachments/assets/33a155ed-b514-414f-9bd0-a1606d5fadc7" />
+
+Arquitectura de despliegue en OCI basada en dos máquinas virtuales independientes para los contenedores de backend y frontend, respaldadas por un bucket de OCI Object Storage para la persistencia de los paquetes de contenido.
+
+## El ciclo de vida propuesto
+Para garantizar un flujo de trabajo ágil, seguro y con supervisión humana, el sistema opera mediante un ciclo sencillo de 4 pasos:
+
+<img width="1488" height="206" alt="mermaid-diagram-2026-10-25-120934" src="https://github.com/user-attachments/assets/64c143ba-2c7b-4c7c-9740-0d2afc3533e5" />
+
+## Instrucciones de uso
+[ACÁ EL VIDEO]
+
+# Especificaciones técnicas
 
 CommunityLab convierte las conversaciones de una comunidad de aprendizaje (Discord, CSV, formularios, GitHub) en **activos de comunicación listos para publicar**: posts de LinkedIn, destacados para el newsletter semanal y sugerencias de FAQ. Agentes con LLM (Google Gemini) analizan, clasifican y redactan; una persona revisa y aprueba cada pieza, y el paquete final se guarda en **OCI Object Storage**.
 
