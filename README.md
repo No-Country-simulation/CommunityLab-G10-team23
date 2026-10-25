@@ -95,7 +95,7 @@ CommunityLab convierte las conversaciones de una comunidad de aprendizaje (Disco
    - **✦ Agente Clasificador (LangGraph):** propone una categoría con su confianza. Si no responde tras 2 intentos, o si su confianza es menor a **0.75**, se usa la categoría del clasificador por reglas. Luego calcula el `relevance_score` (0–100) y decide la ruta: generar activos, alerta de soporte o descartar.
    - **✦ Agente Redactor:** según la categoría elige los formatos (éxito, testimonio o post social → LinkedIn + Newsletter; FAQ o contenido educativo → FAQ + LinkedIn) y los redacta usando solo hechos del análisis. Si el LLM falla, usa plantillas. Todo candidato nace `pendiente`.
 3. **Revisión humana (HITL).** Cada candidato se aprueba, se edita y aprueba, o se rechaza. "Guardar cambios" queda bloqueado mientras quede alguno `pendiente`.
-4. ** Publicación.** Por cada formato oficial gana el candidato **aprobado** con mayor `relevance_score`. Se calcula el resumen de la comunidad y el paquete se guarda en OCI como `activos/paquete_{N}/paquete-distribucion.json`.
+4. **Publicación.** Por cada formato oficial gana el candidato **aprobado** con mayor `relevance_score`. Se calcula el resumen de la comunidad y el paquete se guarda en OCI como `activos/paquete_{N}/paquete-distribucion.json`.
 5. **Historial y dashboard.** La interfaz lista los paquetes guardados, muestra 4 KPIs y 4 gráficas (sentimiento, activos por canal, temas y relevancia) y permite inspeccionar cada caso en modo de solo lectura.
 
 Un error en cualquier fase queda registrado en el campo `error` de esa interacción y **no detiene el resto del lote**.
