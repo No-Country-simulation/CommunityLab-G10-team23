@@ -66,8 +66,19 @@ Para garantizar un flujo de trabajo ágil, seguro y con supervisión humana, el 
 
 <img width="1488" height="206" alt="mermaid-diagram-2026-10-25-120934" src="https://github.com/user-attachments/assets/64c143ba-2c7b-4c7c-9740-0d2afc3533e5" />
 
-## Instrucciones de uso
-[ACÁ EL VIDEO]
+# Instrucciones de uso
+[![Ver demo](https://img.shields.io/badge/Ver_demo-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/FErg-uWqOAQ)
+
+## Capturas de la aplicación
+
+<p align="center">
+  <img src="assets/img1.png" width="600" alt="Captura de la bandeja de revisión">
+  <img src="assets/img2.png" width="600" alt="Captura del detalle por interacción">
+  <img src="assets/img3.png" width="600" alt="Captura del historial">
+  <img src="assets/img4.png" width="600" alt="Captura del dashboard">
+
+</p>
+
 
 # Especificaciones técnicas
 
