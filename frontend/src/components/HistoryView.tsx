@@ -110,6 +110,7 @@ interface PackageSummary {
 interface FlatCase extends CasoItem {
   paqueteNombre: string;
   paqueteFecha: string;
+  paqueteFechaIso?: string;
   paqueteRuta: string;
   origenComunidad: string;
   periodoReferencia: string;
@@ -118,6 +119,27 @@ interface FlatCase extends CasoItem {
 type DateRangeOption = "todas" | "hoy" | "7dias" | "30dias" | "personalizado";
 type SortColumn = "index" | "fecha" | "autor" | "relevancia" | "sentimiento";
 type SortDirection = "asc" | "desc";
+
+// Obtener fecha Date del caso en horario local
+function getCaseLocalDate(c: FlatCase): Date | null {
+  if (c.interaccion?.timestamp) {
+    const d = new Date(c.interaccion.timestamp);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (c.paqueteFechaIso) {
+    const d = new Date(c.paqueteFechaIso);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
+// Formatear una fecha en string YYYY-MM-DD según la zona horaria local del navegador
+function formatLocalYMD(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 function formatFechaLegible(fechaStr?: string): string {
   if (!fechaStr) return "";
@@ -195,7 +217,8 @@ export function HistoryView() {
     const list: FlatCase[] = [];
     packages.forEach((pkg) => {
       const casos = pkg.data?.casos || [];
-      const fecha = formatFechaLegible(pkg.data?.fecha_guardado || pkg.fecha_creacion);
+      const rawFechaIso = pkg.data?.fecha_guardado || pkg.fecha_creacion || "";
+      const fecha = formatFechaLegible(rawFechaIso);
       const origen = pkg.data?.origen_comunidad || "General";
       const periodo = pkg.data?.periodo_referencia || pkg.periodo_referencia;
 
@@ -204,6 +227,7 @@ export function HistoryView() {
           ...c,
           paqueteNombre: pkg.nombre,
           paqueteFecha: fecha,
+          paqueteFechaIso: rawFechaIso,
           paqueteRuta: pkg.ruta_objeto,
           origenComunidad: origen,
           periodoReferencia: periodo,
@@ -213,35 +237,47 @@ export function HistoryView() {
     return list;
   }, [packages]);
 
-  // Filtrado temporal por fechas
+  // Filtrado temporal por fechas en horario local
   const dateFilteredCases = useMemo(() => {
     if (dateRange === "todas") return allCases;
 
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+    const todayStr = formatLocalYMD(now);
 
     return allCases.filter((c) => {
-      const rawDateStr = c.interaccion.timestamp || c.periodoReferencia || "";
-      if (!rawDateStr) return true;
+      const caseDate = getCaseLocalDate(c);
+      if (!caseDate) return false;
 
-      const caseDate = new Date(rawDateStr);
-      if (isNaN(caseDate.getTime())) return true;
+      const caseDayStr = formatLocalYMD(caseDate);
 
       if (dateRange === "hoy") {
-        return rawDateStr.slice(0, 10) === todayStr;
+        return caseDayStr === todayStr;
       }
       if (dateRange === "7dias") {
-        const diffDays = (now.getTime() - caseDate.getTime()) / (1000 * 3600 * 24);
-        return diffDays >= 0 && diffDays <= 7;
+        const diffMs = now.getTime() - caseDate.getTime();
+        const diffDays = diffMs / (1000 * 3600 * 24);
+        return diffDays >= -0.1 && diffDays <= 7;
       }
       if (dateRange === "30dias") {
-        const diffDays = (now.getTime() - caseDate.getTime()) / (1000 * 3600 * 24);
-        return diffDays >= 0 && diffDays <= 30;
+        const diffMs = now.getTime() - caseDate.getTime();
+        const diffDays = diffMs / (1000 * 3600 * 24);
+        return diffDays >= -0.1 && diffDays <= 30;
       }
       if (dateRange === "personalizado") {
-        const caseDay = rawDateStr.slice(0, 10);
-        if (customStartDate && caseDay < customStartDate) return false;
-        if (customEndDate && caseDay > customEndDate) return false;
+        const start = customStartDate.trim();
+        const end = customEndDate.trim();
+
+        if (start && end) {
+          return caseDayStr >= start && caseDayStr <= end;
+        }
+        if (start && !end) {
+          // Si solo se ingresó una fecha en 'Desde', filtrar exactamente ese día seleccionado
+          return caseDayStr === start;
+        }
+        if (!start && end) {
+          // Si solo se ingresó una fecha en 'Hasta', filtrar exactamente ese día seleccionado
+          return caseDayStr === end;
+        }
         return true;
       }
       return true;
@@ -308,8 +344,8 @@ export function HistoryView() {
       if (sortColumn === "autor") {
         cmp = (a.interaccion.autor || "").localeCompare(b.interaccion.autor || "");
       } else if (sortColumn === "fecha") {
-        const dateA = new Date(a.interaccion.timestamp || a.periodoReferencia || 0).getTime();
-        const dateB = new Date(b.interaccion.timestamp || b.periodoReferencia || 0).getTime();
+        const dateA = getCaseLocalDate(a)?.getTime() || 0;
+        const dateB = getCaseLocalDate(b)?.getTime() || 0;
         cmp = dateA - dateB;
       } else if (sortColumn === "relevancia") {
         cmp = (a.oportunidad?.relevance_score ?? 0) - (b.oportunidad?.relevance_score ?? 0);
@@ -736,7 +772,15 @@ export function HistoryView() {
                 <select
                   id="date-range-select"
                   value={dateRange}
-                  onChange={(e) => setDateRange(e.target.value as any)}
+                  onChange={(e) => {
+                    const val = e.target.value as DateRangeOption;
+                    setDateRange(val);
+                    if (val === "personalizado" && !customStartDate && !customEndDate) {
+                      const today = formatLocalYMD(new Date());
+                      setCustomStartDate(today);
+                      setCustomEndDate(today);
+                    }
+                  }}
                   className="text-xs border border-slate-300 rounded-lg px-2.5 py-1 bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="todas">Todas las fechas (Total)</option>
@@ -747,20 +791,21 @@ export function HistoryView() {
                 </select>
 
                 {dateRange === "personalizado" && (
-                  <div className="flex items-center gap-1 text-xs ml-1">
+                  <div className="flex items-center gap-1.5 text-xs ml-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                    <span className="text-[11px] font-semibold text-slate-600">Desde:</span>
                     <input
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="border border-slate-300 rounded-lg px-1.5 py-0.5 text-xs text-slate-700 bg-white"
+                      className="border border-slate-300 rounded px-1.5 py-0.5 text-xs text-slate-800 bg-white font-medium focus:ring-1 focus:ring-indigo-500"
                       title="Fecha desde"
                     />
-                    <span className="text-slate-400">-</span>
+                    <span className="text-[11px] font-semibold text-slate-600 ml-1">Hasta:</span>
                     <input
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="border border-slate-300 rounded-lg px-1.5 py-0.5 text-xs text-slate-700 bg-white"
+                      className="border border-slate-300 rounded px-1.5 py-0.5 text-xs text-slate-800 bg-white font-medium focus:ring-1 focus:ring-indigo-500"
                       title="Fecha hasta"
                     />
                   </div>
@@ -1183,7 +1228,15 @@ export function HistoryView() {
                 <select
                   id="dash-date-select"
                   value={dateRange}
-                  onChange={(e) => setDateRange(e.target.value as any)}
+                  onChange={(e) => {
+                    const val = e.target.value as DateRangeOption;
+                    setDateRange(val);
+                    if (val === "personalizado" && !customStartDate && !customEndDate) {
+                      const today = formatLocalYMD(new Date());
+                      setCustomStartDate(today);
+                      setCustomEndDate(today);
+                    }
+                  }}
                   className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value="todas">Todas las fechas (Consolidado completo)</option>
@@ -1194,20 +1247,21 @@ export function HistoryView() {
                 </select>
 
                 {dateRange === "personalizado" && (
-                  <div className="flex items-center gap-1.5 text-xs ml-1">
+                  <div className="flex items-center gap-1.5 text-xs ml-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                    <span className="text-[11px] font-semibold text-slate-600">Desde:</span>
                     <input
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white"
+                      className="border border-slate-300 rounded px-1.5 py-0.5 text-xs text-slate-800 bg-white font-medium focus:ring-1 focus:ring-indigo-500"
                       title="Fecha desde"
                     />
-                    <span className="text-slate-400">a</span>
+                    <span className="text-[11px] font-semibold text-slate-600 ml-1">Hasta:</span>
                     <input
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="border border-slate-300 rounded-lg px-2 py-1 text-xs text-slate-700 bg-white"
+                      className="border border-slate-300 rounded px-1.5 py-0.5 text-xs text-slate-800 bg-white font-medium focus:ring-1 focus:ring-indigo-500"
                       title="Fecha hasta"
                     />
                   </div>
