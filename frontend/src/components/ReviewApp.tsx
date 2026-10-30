@@ -1,12 +1,12 @@
-"use client";
-
-import React, { useEffect, useRef, useState } from "react";
-import { Upload, Loader2, Search, Ban, Inbox, FileJson } from "lucide-react";
-import { Header } from "@/components/Header";
-import { ReviewTable, TableMode } from "@/components/ReviewTable";
+import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
+import { AlertTriangle, Upload, Loader2, Search, Inbox, FileJson, LayoutList, RefreshCw } from "lucide-react";
+import { Sidebar, type AppView } from "@/components/Sidebar";
+import { PageHeader } from "@/components/PageHeader";
+import { StatusCards, type ReviewFilter } from "@/components/StatusCards";
+import { AlertDialog } from "@/components/AlertDialog";
+import { ReviewTable, type TableMode } from "@/components/ReviewTable";
 import { InteractionDetailModal } from "@/components/InteractionDetailModal";
-import { HistoryView } from "@/components/HistoryView";
-import {
+import type {
   ActivoCandidato,
   EstadoAprobacion,
   EstadoTrabajo,
@@ -18,9 +18,8 @@ import {
 } from "@/types/backend";
 import {
   FORMATS,
-  ReviewRow,
+  type ReviewRow,
   STATUSES,
-  STATUS_PLURAL,
   TABS,
   copyText,
   discardedRows,
@@ -30,6 +29,9 @@ import {
 } from "@/lib/review";
 import { copyToClipboard } from "@/lib/clipboard";
 
+// El historial es la vista más pesada: se descarga solo cuando el usuario la abre.
+const HistoryView = lazy(() => import("@/components/HistoryView").then((m) => ({ default: m.HistoryView })));
+
 type ToastType = "success" | "error" | "info";
 
 const POLL_INTERVAL_MS = 2000;
@@ -38,7 +40,7 @@ const MAX_POLL_FAILURES = 5;
 function errorDetail(json: any, fallback: string): string {
   const detail = json?.detail ?? json?.error;
   if (typeof detail === "string") return detail;
-  if (Array.isArray(detail)) return "el lote no cumple el contrato SolicitudProcesamiento";
+  if (Array.isArray(detail)) return "el archivo no tiene el formato esperado";
   return fallback;
 }
 
@@ -49,11 +51,11 @@ function parseBatch(text: string): SolicitudProcesamiento {
     const cleanText = text.replace(/^\uFEFF/, "").trim();
     parsed = JSON.parse(cleanText);
   } catch (err: any) {
-    throw new Error(`El archivo no es un JSON válido: ${err.message}`);
+    throw new Error("No pudimos leer el archivo. Revisa que sea un archivo .json válido.");
   }
 
   if (!parsed || typeof parsed !== "object") {
-    throw new Error("El archivo no contiene un JSON válido.");
+    throw new Error("No pudimos leer el archivo. Revisa que sea un archivo .json válido.");
   }
 
   if (parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data)) {
@@ -72,17 +74,17 @@ function parseBatch(text: string): SolicitudProcesamiento {
   }
 
   if (!rawInteractions || rawInteractions.length === 0) {
-    throw new Error("El archivo JSON no contiene ninguna lista de interacciones.");
+    throw new Error("El archivo no tiene mensajes para revisar.");
   }
   if (rawInteractions.length > 500) {
-    throw new Error("El lote supera el máximo de 500 interacciones.");
+    throw new Error("El archivo tiene más de 500 mensajes. Divídelo en partes más pequeñas y súbelas por separado.");
   }
 
   const invalid = rawInteractions.findIndex(
     (i: any) => !i || !["autor", "canal", "tipo", "texto"].every((k) => typeof i[k] === "string")
   );
   if (invalid !== -1) {
-    throw new Error(`La interacción ${invalid + 1} debe tener autor, canal, tipo y texto.`);
+    throw new Error(`Al mensaje ${invalid + 1} le falta información: cada mensaje necesita autor, canal, tipo y texto.`);
   }
 
   const origen_comunidad =
@@ -101,7 +103,7 @@ function parseBatch(text: string): SolicitudProcesamiento {
   };
 }
 
-export default function Home() {
+export default function ReviewApp() {
   const [solicitud, setSolicitud] = useState<SolicitudProcesamiento | null>(null);
   const [result, setResult] = useState<ResultadoPipeline | null>(null);
   const [job, setJob] = useState<{ id: string; estado: EstadoTrabajo; total: number; procesadas: number } | null>(null);
@@ -116,9 +118,10 @@ export default function Home() {
   const [detail, setDetail] = useState<{ itemId: string; candidateId?: string } | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [isPublishingOCI, setIsPublishingOCI] = useState(false);
+  const [pendingWarning, setPendingWarning] = useState<{ interacciones: number; activos: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
-  const [viewMode, setViewMode] = useState<"revision" | "historial">("revision");
+  const [viewMode, setViewMode] = useState<AppView>("revision");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -161,12 +164,12 @@ export default function Home() {
       setDetail(null);
       notify(
         json.source === "fastapi"
-          ? `Procesando ${data.total} ${data.total === 1 ? "interacción" : "interacciones"} una por una…`
-          : "Lote procesado en modo demostración (backend no disponible)",
+          ? `Analizando ${data.total} ${data.total === 1 ? "mensaje" : "mensajes"}. Verás cada resultado en cuanto esté listo.`
+          : "No pudimos conectar con el servidor. Te mostramos datos de ejemplo para que explores la bandeja.",
         "info"
       );
     } catch (err: any) {
-      notify(`Error procesando el lote: ${err.message}`, "error");
+      notify(`No se pudo subir el archivo: ${err.message}`, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -195,7 +198,7 @@ export default function Home() {
         setJob((j) => (j && j.id === data.job_id ? { ...j, estado: data.estado, procesadas: data.procesadas } : j));
 
         if (data.estado === "completado") {
-          notify(`Lote procesado: ${data.procesadas} ${data.procesadas === 1 ? "interacción" : "interacciones"}`, "success");
+          notify(`Listo: ${data.procesadas} ${data.procesadas === 1 ? "mensaje analizado" : "mensajes analizados"}`, "success");
           return;
         }
         if (data.estado === "fallido") {
@@ -224,14 +227,17 @@ export default function Home() {
     if (!solicitud || isPublishingOCI) return;
 
     const itemsToSave = result?.interacciones_procesadas ?? [];
-    const hasPending = itemsToSave.some((it) =>
+    const pendingItems = itemsToSave.filter((it) =>
       it.activos_candidatos.some((c) => c.estado_aprobacion === "pendiente")
     );
-    if (hasPending) {
-      notify(
-        "⚠️ No se puede guardar: aún tienes casos o canales en estado Pendiente. Por favor aprueba o rechaza cada uno antes de guardar.",
-        "error"
-      );
+    if (pendingItems.length > 0) {
+      setPendingWarning({
+        interacciones: pendingItems.length,
+        activos: pendingItems.reduce(
+          (n, it) => n + it.activos_candidatos.filter((c) => c.estado_aprobacion === "pendiente").length,
+          0
+        ),
+      });
       return;
     }
 
@@ -260,7 +266,7 @@ export default function Home() {
         "success"
       );
       // Redirigir al historial para visualizar de inmediato el paquete guardado
-      setViewMode("historial");
+      setViewMode("tabla");
 
       // Resetear la bandeja de entrada para que quede completamente limpia y lista para un nuevo lote
       setSolicitud(null);
@@ -355,37 +361,66 @@ export default function Home() {
 
   const items = result?.interacciones_procesadas ?? [];
   const inDiscarded = tab === "todos" && showDiscarded;
-  const baseRows = inDiscarded ? discardedRows(items) : rowsForTab(items, tab);
+  const tabRows = rowsForTab(items, tab);
+  const baseRows = inDiscarded ? discardedRows(items) : tabRows;
+  // Los conteos por estado siempre se calculan sobre la pestaña, aunque se vean las descartadas.
   const statusCount = (s: EstadoAprobacion) =>
     tab === "alertas"
-      ? (s === "pendiente" ? baseRows.length : 0)
-      : baseRows.filter((r) => rowStatuses(r).includes(s)).length;
+      ? (s === "pendiente" ? tabRows.length : 0)
+      : tabRows.filter((r) => rowStatuses(r).includes(s)).length;
   const isFilteredByStatus = tab !== "alertas" && !inDiscarded;
   const visibleRows = baseRows.filter(
     (r) => (!isFilteredByStatus || rowStatuses(r).includes(status)) && matchesSearch(r, search)
   );
 
+  // Tarjetas de estado: "Descartados" equivale a la vista de descartadas de la pestaña Todos.
+  const activeFilter: ReviewFilter = inDiscarded ? "descartado" : status;
+  const selectFilter = (f: ReviewFilter) => {
+    if (f === "descartado") {
+      setTab("todos");
+      setShowDiscarded(true);
+    } else {
+      setShowDiscarded(false);
+      setStatus(f);
+    }
+  };
+  const discardedCount = discardedRows(items).length;
+  const statusTotal = STATUSES.reduce((sum, s) => sum + statusCount(s), 0);
+  const scopeLabel = TABS.find((t) => t.key === tab)?.label.toLowerCase() ?? "todos";
+  const percent = (n: number, total: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
+
+  // Conteo de cada pestaña de contenido limitado al estado seleccionado en las tarjetas.
+  const countForTab = (key: ReviewTab) => {
+    if (inDiscarded) return key === "todos" ? discardedCount : 0;
+    const rows = rowsForTab(items, key);
+    if (key === "alertas") return status === "pendiente" ? rows.length : 0;
+    return rows.filter((r) => rowStatuses(r).includes(status)).length;
+  };
+
   const mode: TableMode = inDiscarded || tab === "alertas" ? "motivo" : tab === "todos" ? "todos" : "formato";
   const detailItem = detail && items.find((it) => it.interaccion.id === detail.itemId);
+
+  // Arrastrar y soltar un .json funciona tanto en la pantalla vacía como sobre la bandeja.
+  const dropHandlers = {
+    onDragOver: (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
+    },
+    onDragLeave: () => setIsDragging(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file) handleFile(file);
+    },
+  };
 
   const openDetail = (row: ReviewRow) =>
     setDetail({ itemId: row.item.interaccion.id, candidateId: row.candidato?.candidato_id });
 
   return (
-    <div className="h-dvh flex flex-col bg-slate-50">
-      <Header
-        batch={
-          solicitud && { origen: solicitud.origen_comunidad, periodo: solicitud.periodo_referencia, total: solicitud.interacciones.length }
-        }
-        isLoading={isProcessing}
-        progress={job && isProcessing ? { procesadas: job.procesadas, total: job.total } : null}
-        onPickFile={() => fileInputRef.current?.click()}
-        onReprocess={() => solicitud && cargarLote(solicitud)}
-        onPublishOCI={handlePublishOCI}
-        isPublishing={isPublishingOCI}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-      />
+    <div className="h-dvh flex flex-col lg:flex-row bg-ink-50">
+      <Sidebar view={viewMode} onViewChange={setViewMode} />
       <input
         ref={fileInputRef}
         type="file"
@@ -398,161 +433,184 @@ export default function Home() {
         }}
       />
 
-      {viewMode === "historial" ? (
-        <main className="flex-1 overflow-hidden bg-slate-50">
-          <HistoryView />
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+      {viewMode !== "revision" ? (
+        <main className="flex-1 min-h-0 overflow-hidden bg-ink-50">
+          <Suspense fallback={<div className="h-full flex items-center justify-center"><LoadingState label="Cargando historial…" /></div>}>
+            <HistoryView view={viewMode} onViewChange={setViewMode} />
+          </Suspense>
         </main>
-      ) : !result ? (
-        <main className="flex-1 flex items-center justify-center p-6">
+      ) : (
+        <>
+          <PageHeader
+            icon={<LayoutList className="w-[27px] h-[27px]" />}
+            title="Bandeja de revisión"
+            subtitle="Evalúa, edita y aprueba las propuestas de contenido generadas por la IA antes de guardarlas en el historial."
+            actions={
+              solicitud ? (
+                <>
+                  <button onClick={() => cargarLote(solicitud)} disabled={isProcessing || isPublishingOCI} className="btn-ghost">
+                    <RefreshCw className={`w-4 h-4 ${isProcessing ? "animate-spin" : ""}`} />
+                    Reprocesar
+                  </button>
+                  <button onClick={() => fileInputRef.current?.click()} disabled={isProcessing} className="btn-soft">
+                    <Upload className="w-4 h-4" />
+                    Subir archivo
+                  </button>
+                  <button
+                    onClick={handlePublishOCI}
+                    disabled={isProcessing || isPublishingOCI}
+                    className="btn-primary"
+                    title="Guardar cambios en OCI Object Storage (Equipo D)"
+                  >
+                    <Upload className={`w-4 h-4 ${isPublishingOCI ? "animate-spin" : ""}`} />
+                    {isPublishingOCI ? "Guardando cambios…" : "Guardar cambios"}
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => fileInputRef.current?.click()} disabled={isProcessing} className="btn-primary">
+                  <Upload className="w-4 h-4" />
+                  Subir archivo
+                </button>
+              )
+            }
+          >
+            {(solicitud || (job && isProcessing)) && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                {solicitud && (
+                  <span className="text-ink-900/80">
+                    <span className="font-medium">{solicitud.origen_comunidad}</span>
+                    <span className="text-ink-900/60"> · {solicitud.periodo_referencia} · {items.length} de {solicitud.interacciones.length} interacciones</span>
+                  </span>
+                )}
+                {job && isProcessing && (
+                  <div className="flex items-center gap-2.5 flex-1 min-w-[200px] max-w-md">
+                    <span className="text-brand-700 font-medium whitespace-nowrap">
+                      Analizando {job.procesadas} de {job.total} mensajes…
+                    </span>
+                    <div
+                      role="progressbar"
+                      aria-label="Avance del lote"
+                      aria-valuemin={0}
+                      aria-valuemax={job.total}
+                      aria-valuenow={job.procesadas}
+                      className="flex-1 h-1.5 rounded-full bg-chart-track overflow-hidden"
+                    >
+                      <div
+                        className="progress-bar h-full rounded-full"
+                        style={{ width: `${job.total ? Math.max(4, (job.procesadas / job.total) * 100) : 4}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </PageHeader>
+
+          {!result ? (
+        <main className="flex-1 flex items-center justify-center p-4 sm:p-6" {...dropHandlers}>
           {isSubmitting ? (
-            <LoadingState label="Enviando el lote al backend…" />
+            <LoadingState label="Subiendo tu archivo…" hint="Esto tarda solo unos segundos." />
           ) : (
-            <div className="text-center max-w-md flex flex-col items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+            <div
+              className={`text-center w-full max-w-lg flex flex-col items-center gap-5 px-6 py-12 sm:px-10 rounded-3xl border-2 border-dashed transition-colors ${
+                isDragging ? "border-brand-500 bg-brand-100" : "border-ink-300 bg-white"
+              }`}
+            >
+              <div className="w-14 h-14 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center">
                 <FileJson className="w-7 h-7" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-900">Esperando un lote de interacciones</h2>
-                <p className="text-sm text-slate-500 mt-1">
-                  Carga un archivo JSON con el contrato <code className="text-xs">SolicitudProcesamiento</code> o
-                  arrástralo a cualquier parte de la página. Se procesará automáticamente.
+                <h2 className="text-2xl font-bold text-ink-900">
+                  {isDragging ? "Suelta el archivo para empezar" : "Sube las conversaciones de tu comunidad"}
+                </h2>
+                <p className="text-sm text-ink-600 mt-2 leading-relaxed max-w-sm mx-auto">
+                  Arrastra aquí el archivo con los mensajes que quieres revisar o búscalo en tu equipo. Analizaremos cada
+                  mensaje y te sugeriremos publicaciones para LinkedIn, el newsletter y las preguntas frecuentes.
                 </p>
+                <p className="text-xs text-ink-500 mt-3">Archivo .json · hasta 500 mensajes</p>
               </div>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 cursor-pointer"
-              >
+              <button onClick={() => fileInputRef.current?.click()} className="btn-primary">
                 <Upload className="w-4 h-4" />
-                Cargar JSON
+                Subir archivo
               </button>
             </div>
           )}
         </main>
-      ) : (
+          ) : (
         <>
-          {/* Encabezado limpio de la Bandeja de Revisión */}
-          <div className="bg-white border-b border-slate-200 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Bandeja de revisión</h2>
-              <p className="text-xs text-slate-500">
-                Evalúa, edita y aprueba las propuestas de contenido generadas por la IA antes de guardarlas en el historial.
-              </p>
-            </div>
-            {solicitud && (
-              <div className="text-xs text-slate-500 flex items-center gap-2">
-                <span className="font-medium text-slate-700">{solicitud.origen_comunidad}</span>
-                <span>·</span>
-                <span className="text-indigo-600 font-semibold">{items.length} interacciones</span>
-              </div>
-            )}
+          {/* Nivel 1: estados de revisión (tarjetas resumen seleccionables) */}
+          <div className="bg-white px-4 sm:px-5 pb-4">
+            <StatusCards
+              active={activeFilter}
+              onSelect={selectFilter}
+              cards={[
+                ...STATUSES.map((s) => ({
+                  key: s,
+                  count: statusCount(s),
+                  metric: `${percent(statusCount(s), statusTotal)}% de ${scopeLabel}`,
+                })),
+                {
+                  key: "descartado" as const,
+                  count: discardedCount,
+                  metric: `${percent(discardedCount, items.length)}% del lote`,
+                },
+              ]}
+            />
           </div>
 
-          {/* Nivel 1: Canales de contenido */}
-          <nav className="bg-white border-b border-slate-200 px-6 flex gap-1 overflow-x-auto shadow-2xs" role="tablist">
-            {TABS.map((t) => {
-              const count = rowsForTab(items, t.key).length;
-              const selected = tab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  role="tab"
-                  aria-selected={selected}
-                  onClick={() => {
-                    setTab(t.key);
-                    setShowDiscarded(false);
-                  }}
-                  className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 -mb-px flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
-                    selected
-                      ? "border-indigo-600 text-indigo-600"
-                      : "border-transparent text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  {t.label}
-                  <span
-                    className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold ${
-                      selected ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-600"
+          {/* Nivel 2: filtro por contenido (formato y búsqueda) */}
+          <div className="bg-white border-b border-ink-200 px-4 sm:px-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+            <nav className="flex gap-1 overflow-x-auto -mb-px max-w-full" role="tablist" aria-label="Filtrar por formato">
+              {TABS.map((t) => {
+                const count = countForTab(t.key);
+                const selected = tab === t.key && !inDiscarded;
+                return (
+                  <button
+                    key={t.key}
+                    role="tab"
+                    aria-selected={selected}
+                    onClick={() => {
+                      setTab(t.key);
+                      setShowDiscarded(false);
+                    }}
+                    className={`px-3.5 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+                      selected ? "border-brand-600 text-brand-700" : "border-transparent text-ink-500 hover:text-ink-900"
                     }`}
                   >
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-
-          {/* Nivel 2: Estados de aprobación y Buscador */}
-          <div className="bg-white border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              {/* Filtro por estado de aprobación (Pendientes, Aprobados, Rechazados) */}
-              <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="group">
-                {STATUSES.map((s) => {
-                  const count = statusCount(s);
-                  const active = status === s;
-                  return (
-                    <button
-                      key={s}
-                      onClick={() => setStatus(s)}
-                      className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                        active
-                          ? "bg-white text-slate-900 shadow-xs font-semibold"
-                          : "text-slate-500 hover:text-slate-900"
+                    {t.label}
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                        selected ? "bg-brand-100 text-brand-800" : "bg-ink-100 text-ink-600"
                       }`}
                     >
-                      {STATUS_PLURAL[s]}
-                      <span className="text-[11px] text-slate-400 font-normal">({count})</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Botón de descartadas cuando se está en 'todos' */}
-              {tab === "todos" && (
-                <button
-                  onClick={() => setShowDiscarded((v) => !v)}
-                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                    showDiscarded
-                      ? "bg-slate-900 text-white font-semibold"
-                      : "text-slate-600 hover:bg-slate-100 border border-slate-200"
-                  }`}
-                >
-                  <Ban className="w-3.5 h-3.5" />
-                  Descartadas ({discardedRows(items).length})
-                </button>
-              )}
-            </div>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
 
             {/* Buscador */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <div className="relative w-full sm:w-auto pb-2">
+              <Search className="w-4 h-4 text-ink-500 absolute left-3 top-[calc(50%-4px)] -translate-y-1/2" />
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por autor, texto o motivo…"
-                className="text-xs pl-8 pr-3 py-1.5 w-64 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                placeholder="Buscar por autor…"
+                aria-label="Buscar en la bandeja por autor"
+                className="text-sm pl-9 pr-3 py-2 w-full sm:w-64 rounded-full bg-ink-900/5 focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
           </div>
 
-          <main
-            className="flex-1 overflow-auto bg-white relative"
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              const file = e.dataTransfer.files?.[0];
-              if (file) handleFile(file);
-            }}
-          >
+          <main className="flex-1 overflow-auto bg-white relative" {...dropHandlers}>
             {isDragging && (
-              <div className="absolute inset-0 z-20 bg-indigo-500/10 border-2 border-dashed border-indigo-500 backdrop-blur-xs flex items-center justify-center">
-                <div className="bg-white px-6 py-4 rounded-xl shadow-lg text-sm font-semibold text-indigo-700 flex items-center gap-2">
+              <div className="absolute inset-0 z-20 bg-brand-500/10 border-2 border-dashed border-brand-500 backdrop-blur-xs flex items-center justify-center">
+                <div className="bg-white px-6 py-4 rounded-xl shadow-lg text-sm font-semibold text-brand-700 flex items-center gap-2">
                   <Upload className="w-4 h-4 animate-bounce" />
-                  Suelta el archivo JSON aquí
+                  Suelta el archivo para revisarlo
                 </div>
               </div>
             )}
@@ -562,13 +620,14 @@ export default function Home() {
                 rows={visibleRows}
                 mode={mode}
                 savingId={savingId}
+                selectedKey={detail ? detail.candidateId ?? detail.itemId : null}
                 onOpen={openDetail}
                 onSetStatus={(item, c, s) => saveCandidate(item, c, s, c.contenido)}
               />
             ) : (
-              <div className="h-64 flex flex-col items-center justify-center gap-2 text-slate-400 text-center">
-                <Inbox className="w-8 h-8 text-slate-300" />
-                <p className="text-sm font-medium text-slate-600">No hay elementos para mostrar</p>
+              <div className="h-64 flex flex-col items-center justify-center gap-2 text-ink-500 text-center">
+                <Inbox className="w-8 h-8 text-ink-300" />
+                <p className="text-sm font-medium text-ink-600">No hay elementos para mostrar</p>
                 <p className="text-xs">
                   {search ? "Prueba con otra búsqueda o limpia el filtro." : "No hay candidatos con los filtros actuales."}
                 </p>
@@ -576,7 +635,10 @@ export default function Home() {
             )}
           </main>
         </>
+          )}
+        </>
       )}
+      </div>
 
       {detailItem && (
         <InteractionDetailModal
@@ -591,14 +653,47 @@ export default function Home() {
         />
       )}
 
+      {pendingWarning && (
+        <AlertDialog
+          icon={<AlertTriangle className="w-5 h-5" />}
+          title="Hay contenido pendiente de revisar"
+          onClose={() => setPendingWarning(null)}
+          actions={
+            <>
+              <button onClick={() => setPendingWarning(null)} className="btn-ghost">
+                Cerrar
+              </button>
+              <button
+                onClick={() => {
+                  setPendingWarning(null);
+                  setViewMode("revision");
+                  setTab("todos");
+                  setShowDiscarded(false);
+                  setStatus("pendiente");
+                }}
+                className="btn-primary"
+              >
+                Revisar pendientes
+              </button>
+            </>
+          }
+        >
+          <p>
+            {pendingWarning.interacciones === 1 ? "1 interacción tiene" : `${pendingWarning.interacciones} interacciones tienen`}{" "}
+            {pendingWarning.activos === 1 ? "1 contenido" : `${pendingWarning.activos} contenidos`} sin aprobar ni rechazar.
+            Revísalos antes de guardar el lote en el historial.
+          </p>
+        </AlertDialog>
+      )}
+
       {toast && (
         <div
           role="status"
-          className="fixed bottom-6 right-6 z-70 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm"
+          className="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-6 sm:right-6 z-70 bg-ink-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm"
         >
           <span
             className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center text-xs ${
-              toast.type === "success" ? "bg-emerald-500" : toast.type === "error" ? "bg-rose-500" : "bg-indigo-500"
+              toast.type === "success" ? "bg-success-500" : toast.type === "error" ? "bg-danger-500" : "bg-brand-500"
             }`}
           >
             {toast.type === "success" ? "✓" : toast.type === "error" ? "✕" : "i"}
@@ -612,10 +707,10 @@ export default function Home() {
 
 function LoadingState({ label, hint }: { label: string; hint?: string }) {
   return (
-    <div className="flex flex-col items-center gap-3 text-center text-slate-600">
-      <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+    <div className="flex flex-col items-center gap-3 text-center text-ink-600">
+      <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
       <p className="text-sm font-medium">{label}</p>
-      {hint && <p className="text-xs text-slate-400 max-w-xs">{hint}</p>}
+      {hint && <p className="text-xs text-ink-500 max-w-xs">{hint}</p>}
     </div>
   );
 }

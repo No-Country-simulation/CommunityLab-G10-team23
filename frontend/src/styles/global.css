@@ -1,0 +1,331 @@
+@import "tailwindcss";
+
+/*
+ * Sistema visual de Community IA.
+ *
+ * Base: tema "Dong" ([ref], ver docs/MIGRACION_ASTRO.md). Rediseño: valores [figma:*]
+ * leídos con el MCP de Figma (ver docs/REDISENO_FIGMA.md):
+ *   [figma:sidebar] OWA Wizzard Stepper / Table / Sidebar UI (QdFvnDUqRmQ2DM8gncPmHa)
+ *   [figma:mesh]    100 Mesh Gradients (GQfq09j6K6vDmkUrwBttjg), muestreado de la imagen
+ *   [figma:charts]  Smart Charts Kit (bTCTSkww6rmIgqnJ96EgdH)
+ *
+ * Se anulan las paletas por defecto de Tailwind (--color-*: initial) para que todo
+ * color de la interfaz salga de aquí y no vuelvan a aparecer valores dispersos.
+ */
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Violeta de marca (tono 287°) */
+  --color-brand-50: #f6f6ff;
+  --color-brand-100: #e8e3ff; /* [figma:sidebar] texto de la sidebar y botones secundarios */
+  --color-brand-200: #d6d4fe;
+  --color-brand-300: #bcb7ff;
+  --color-brand-400: #9c7cff; /* [ref] --primary-active (claro) */
+  --color-brand-500: #8b60ff; /* [ref] --primary (claro) */
+  --color-brand-600: #704ee8;
+  --color-brand-700: #5a40b8;
+  --color-brand-800: #442f8f;
+  --color-brand-900: #2d1d65;
+  --color-brand-950: #180046; /* [ref] --background (oscuro) */
+
+  /* Neutros teñidos de violeta: texto, bordes y superficies */
+  --color-ink-50: #f9f9fd;
+  --color-ink-100: #efeff8;
+  --color-ink-200: #e0e0ee;
+  --color-ink-300: #c3c2d8; /* [ref] --border (claro) */
+  --color-ink-400: #9090a4;
+  --color-ink-500: #6a697e;
+  --color-ink-600: #53526b;
+  --color-ink-700: #3e3b5e;
+  --color-ink-800: #281f52;
+  --color-ink-900: #040110; /* [figma:sidebar] texto principal */
+  --color-ink-950: #06001e;
+
+  /* Estados de revisión: aprobado */
+  --color-success-50: #ebfcef;
+  --color-success-100: #d3f5db;
+  --color-success-200: #adebbc;
+  --color-success-300: #7fdc9a;
+  --color-success-400: #46c473;
+  --color-success-500: #16a356;
+  --color-success-600: #037e3f;
+  --color-success-700: #10703a;
+  --color-success-800: #0a562b;
+  --color-success-900: #053e1d;
+
+  /* Rechazado / error */
+  --color-danger-50: #fff4f3;
+  --color-danger-100: #ffe4e2;
+  --color-danger-200: #ffcac7;
+  --color-danger-300: #fea5a2;
+  --color-danger-400: #fd7273;
+  --color-danger-500: #ed4952;
+  --color-danger-600: #d02a3a;
+  --color-danger-700: #ac172b;
+  --color-danger-800: #86101f;
+  --color-danger-900: #620914;
+
+  /* Pendiente / alerta */
+  --color-warning-50: #fef7ee;
+  --color-warning-100: #ffebd2;
+  --color-warning-200: #fed7a1;
+  --color-warning-300: #ffbd59;
+  --color-warning-400: #f2a618;
+  --color-warning-500: #da950b;
+  --color-warning-600: #ab7302;
+  --color-warning-700: #855904;
+  --color-warning-800: #694501;
+  --color-warning-900: #4d3202;
+
+  /* Informativo / publicación (tono 234°) */
+  --color-info-50: #eff8fe;
+  --color-info-100: #d3f0ff; /* [ref] --muted (claro) */
+  --color-info-200: #bfdced; /* [ref] --accent (claro) */
+  --color-info-300: #8ac7ea;
+  --color-info-400: #59a9d3;
+  --color-info-500: #3390be;
+  --color-info-600: #2377a0;
+  --color-info-700: #125f82;
+  --color-info-800: #0a4864;
+  --color-info-900: #043247;
+
+  /* Roles semánticos: los componentes nuevos deben preferir estos nombres */
+  --color-primary: var(--color-brand-600);
+  --color-primary-strong: var(--color-brand-700);
+  --color-secondary: var(--color-info-100);
+  --color-background: var(--color-ink-50);
+  --color-surface: var(--color-white);
+  --color-chrome: #08002e; /* [figma:sidebar] fondo de la sidebar */
+  --color-chrome-text: var(--color-brand-100);
+  --color-chrome-active: rgb(232 227 255 / 0.1); /* [figma:sidebar] ítem activo */
+  --color-text: var(--color-ink-900);
+  --color-text-muted: var(--color-ink-500);
+  --color-border: var(--color-ink-200);
+  --color-link: var(--color-brand-600);
+  --color-hover: var(--color-brand-50);
+  --color-active: var(--color-brand-100);
+  --color-disabled: var(--color-ink-200);
+  --color-disabled-text: var(--color-ink-500);
+  --color-focus: var(--color-brand-500);
+  --color-divider: var(--color-ink-100);
+  --color-chart-text: #454459; /* [figma:charts] Text Color */
+  --color-table-head: rgb(247 249 252 / 0.8); /* [figma:table] fondo de cabecera */
+  --color-table-border: #e9edf5; /* [figma:table] Gray/50 */
+  --color-table-muted: #687182; /* [figma:table] Gray/500 */
+  --color-table-text: #171c26; /* [figma:table] Gray/900 */
+  --color-chart-track: rgb(160 140 251 / 0.2); /* [figma:charts] Color 4 #a08cfb al 20% */
+
+  --font-sans: "Work Sans Variable", ui-sans-serif, system-ui, sans-serif; /* [figma:sidebar] */
+  --font-display: var(--font-sans);
+}
+
+/*
+ * Degradados. Se usan solo en acciones principales y elementos destacados; estados y
+ * etiquetas siguen con colores sólidos.
+ */
+:root {
+  /* [figma:sidebar] botón "Create Item": #2900e2 → #8266ff. El final se cambia por #7155ed
+     (parada del degradado del logo del mismo archivo) para que el texto blanco cumpla 4.5:1. */
+  --gradient-primary: linear-gradient(90deg, #2900e2, #7155ed);
+  --gradient-primary-hover: linear-gradient(90deg, #2100b5, #5939e9);
+  --gradient-primary-active: linear-gradient(90deg, #2900e2, #2900e2);
+  /* [figma:mesh] nodo 203:16, colores muestreados de la imagen (esquina sup. der. → centro). */
+  --gradient-secondary: linear-gradient(135deg, #3c0399 0%, #4f61af 100%);
+
+  /* [figma:charts] rellenos de gráficos: paradas (arriba → abajo) y degradado */
+  --chart-violet-from: #b09fff;
+  --chart-violet-to: #8d79f6;
+  --chart-blue-from: #7ad3ff;
+  --chart-blue-to: #4fbaf0;
+  --chart-yellow-from: #ffd572;
+  --chart-yellow-to: #febd38;
+  --chart-green-from: #99ffa3;
+  --chart-green-to: #68ee76;
+  --chart-red-from: #fe6c6c;
+  --chart-red-to: #fe464b;
+  --chart-orange-from: #ff9364;
+  --chart-orange-to: #f25f33;
+  --chart-violet: linear-gradient(180deg, var(--chart-violet-from), var(--chart-violet-to));
+  --chart-blue: linear-gradient(180deg, var(--chart-blue-from), var(--chart-blue-to));
+  --chart-yellow: linear-gradient(180deg, var(--chart-yellow-from), var(--chart-yellow-to));
+  --chart-green: linear-gradient(180deg, var(--chart-green-from), var(--chart-green-to));
+  --chart-red: linear-gradient(180deg, var(--chart-red-from), var(--chart-red-to));
+  --chart-orange: linear-gradient(180deg, var(--chart-orange-from), var(--chart-orange-to));
+  --shadow-card: 0 5px 25px rgb(0 0 0 / 0.1); /* [figma:charts] Shadow 1 */
+  /* [figma:table] Data Table v3: sd-button/default */
+  --shadow-control: 0 0 0 1px rgb(70 79 96 / 0.16), 0 1px 1px rgb(0 0 0 / 0.1);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+
+  a {
+    color: var(--color-link);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-200);
+    color: var(--color-ink-900);
+  }
+}
+
+@layer components {
+  /* Botones píldora [figma:sidebar]: radio 70px, padding 10px × 30px (primario) / 15px (secundario). */
+  .btn-primary,
+  .btn-soft,
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 70px;
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+  }
+  .btn-primary {
+    background-image: var(--gradient-primary);
+    color: var(--color-white);
+  }
+  .btn-primary:hover {
+    background-image: var(--gradient-primary-hover);
+  }
+  .btn-primary:active {
+    background-image: var(--gradient-primary-active);
+  }
+  .btn-soft {
+    background-color: var(--color-active);
+    color: var(--color-ink-900);
+  }
+  .btn-soft:hover {
+    background-color: var(--color-brand-200);
+  }
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--color-ink-900);
+    border: 1px solid rgb(4 1 16 / 0.1); /* [figma:sidebar] borde de filtros */
+  }
+  .btn-ghost:hover {
+    background-color: var(--color-hover);
+  }
+  .btn-primary:disabled,
+  .btn-soft:disabled,
+  .btn-ghost:disabled {
+    background-image: none;
+    background-color: var(--color-disabled);
+    color: var(--color-disabled-text);
+    border-color: transparent;
+    cursor: not-allowed;
+  }
+
+  /*
+   * Tablas de datos [figma:table] (Data Table v3, nodo 213:701): cabecera de 34px con fondo
+   * translúcido y desenfoque, texto Overline (12px, 500, 0.36px, mayúsculas, Gray/500),
+   * filas de 48px y separadores Gray/50.
+   */
+  .data-table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .data-table thead th {
+    height: 34px;
+    padding: 8px 10px;
+    background-color: var(--color-table-head);
+    backdrop-filter: blur(4px);
+    border-bottom: 1px solid var(--color-table-border);
+    color: var(--color-table-muted);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 18px;
+    letter-spacing: 0.36px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .data-table tbody td {
+    height: 48px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--color-table-border);
+    vertical-align: middle;
+  }
+  .data-table thead th:first-child,
+  .data-table tbody td:first-child {
+    padding-left: 20px;
+  }
+  .data-table tbody tr {
+    transition: background-color 120ms ease;
+  }
+  .data-table tbody tr:hover,
+  .data-table tbody tr[data-selected="true"] {
+    background-color: var(--color-hover);
+  }
+  .data-table tbody tr[data-selected="true"] td:first-child {
+    box-shadow: inset 3px 0 0 var(--color-primary);
+  }
+  /* Botón de acción de fila [figma:table] estilo sd-button/default */
+  .table-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    border-radius: 6px;
+    padding: 6px;
+    background-color: var(--color-white);
+    color: var(--color-table-text);
+    box-shadow: var(--shadow-control);
+    cursor: pointer;
+  }
+  .table-action:hover {
+    background-color: var(--color-hover);
+  }
+
+  /* Tarjeta de gráfico [figma:charts]: blanco, radio 16px, sombra suave. */
+  .chart-card {
+    background-color: var(--color-white);
+    border-radius: 16px;
+    box-shadow: var(--shadow-card);
+  }
+}
+
+/* Barra de avance del lote con el degradado secundario. */
+.progress-bar {
+  background-image: var(--gradient-secondary);
+  transition: width 400ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

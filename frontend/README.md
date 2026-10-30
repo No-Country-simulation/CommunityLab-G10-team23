@@ -1,6 +1,6 @@
-# Community Lab — Front-End
+# Community IA — Front-End
 
-Interfaz web para la **revisión humana (HITL)** del contenido que genera el pipeline de CommunityLab, desarrollada con **Next.js 15**, **React 19**, **TypeScript** y **Tailwind CSS**.
+Interfaz web para la **revisión humana (HITL)** del contenido que genera el pipeline de Community IA, desarrollada con **Astro 7** (servidor Node), **React 19** para la parte interactiva, **TypeScript** y **Tailwind CSS 4**. La migración desde Next.js está documentada en [`docs/MIGRACION_ASTRO.md`](docs/MIGRACION_ASTRO.md).
 
 Se conecta al backend en **FastAPI**, que analiza, clasifica y redacta con **Google Gemini** (orquestado con LangGraph) las conversaciones de comunidades de aprendizaje, y propone publicaciones para **LinkedIn**, **Newsletter** y **Contenido FAQ** que una persona revisa antes de publicar.
 
@@ -8,7 +8,7 @@ Se conecta al backend en **FastAPI**, que analiza, clasifica y redacta con **Goo
 
 ## 📋 Tabla de Contenidos
 
-- [Community Lab — Front-End](#community-lab--front-end)
+- [Community IA — Front-End](#community-ia--front-end)
   - [📋 Tabla de Contenidos](#-tabla-de-contenidos)
   - [⚙️ Requisitos Previos](#️-requisitos-previos)
   - [🚀 Puesta en Marcha](#-puesta-en-marcha)
@@ -30,7 +30,7 @@ Se conecta al backend en **FastAPI**, que analiza, clasifica y redacta con **Goo
 - Archivo `.env` en la raíz del repositorio, basado en [`.env.example`](../.env.example), con:
   - `GEMINI_API_KEY`: tu llave de Google AI Studio.
   - `GEMINI_MODEL`: se recomienda `gemini-3.5-flash-lite` (ver [cuotas de Gemini](#cuota-de-gemini-agotada-error-429)).
-- **Node.js** v18.18+ o v20+, solo si vas a ejecutar el frontend fuera de Docker.
+- **Node.js** v22.23+ (requisito de Astro 7), solo si vas a ejecutar el frontend fuera de Docker.
 
 ---
 
@@ -71,6 +71,13 @@ npm run dev
 ```
 
 Abre **http://localhost:3000**. El proxy apunta a `http://localhost:8000` salvo que definas `BACKEND_URL`.
+
+| Script | Qué hace |
+| :--- | :--- |
+| `npm run dev` | Servidor de desarrollo en :3000 |
+| `npm run build` | Compila a `dist/` (servidor en `dist/server/entry.mjs`) |
+| `npm start` | Ejecuta la compilación; acepta `HOST`, `PORT` y `BACKEND_URL` |
+| `npm run check` | Comprobación de tipos de `.astro`, `.ts` y `.tsx` (`astro check`) |
 
 ---
 
@@ -122,40 +129,49 @@ El backend redacta el copy de LinkedIn como un post (gancho, párrafos cortos, l
 ## 🧩 Estructura del Proyecto
 
 ```
-frontend/src/
-├── app/
-│   ├── api/
-│   │   ├── health/route.ts              # Chequeo de salud del backend (GET /health)
-│   │   ├── pipeline/jobs/route.ts       # Proxy BFF hacia POST /api/v1/pipeline/jobs (con simulador)
-│   │   ├── pipeline/jobs/[id]/route.ts  # Proxy BFF hacia GET /api/v1/pipeline/jobs/{id}?desde=n
-│   │   └── review/assets/[id]/route.ts  # Proxy BFF hacia PATCH /api/v1/review/assets/{id}
-│   ├── layout.tsx                       # Layout raíz
-│   └── page.tsx                         # Estado de la página: carga del lote, avance, pestañas, filtros y revisión
-├── components/
-│   ├── Header.tsx                       # Cabecera: lote actual y avance, cargar JSON, reprocesar, datos de prueba, estado del backend
-│   ├── ReviewTable.tsx                  # Tabla de datos con menú ⋮ por fila
-│   └── InteractionDetailModal.tsx       # Ventana de detalle con editor por formato y acciones HITL
-├── lib/
-│   ├── review.ts                        # Pestañas, etiquetas, campos por formato y armado de filas
-│   ├── samples.ts                       # Lotes de demostración
-│   └── simulation.ts                    # Resultado simulado para el modo demostración
-└── types/
-    └── backend.ts                       # Tipos TypeScript de los contratos del backend
+frontend/
+├── astro.config.mjs                     # Salida server + adaptador Node standalone, React y Tailwind (Vite)
+└── src/
+    ├── pages/
+    │   ├── index.astro                  # Página única: monta la isla <ReviewApp client:load />
+    │   └── api/                         # BFF (endpoints de servidor de Astro)
+    │       ├── health.ts                # GET /health
+    │       ├── pipeline/jobs/index.ts   # POST /api/v1/pipeline/jobs (con simulador)
+    │       ├── pipeline/jobs/[id].ts    # GET /api/v1/pipeline/jobs/{id}?desde=n
+    │       ├── review/assets/[id].ts    # PATCH /api/v1/review/assets/{id}
+    │       └── storage/                 # packages, packages/[...slug] y publish (OCI vía backend)
+    ├── layouts/
+    │   └── BaseLayout.astro             # <html>, <head>, fuentes y estilos globales
+    ├── styles/
+    │   └── global.css                   # Tokens de color y tipografía (única fuente de colores)
+    ├── components/
+    │   ├── ReviewApp.tsx                # Estado de la app: carga del lote, avance, pestañas, filtros, revisión y vistas
+    │   ├── Header.tsx                   # Cabecera: lote y avance, cargar JSON, reprocesar, guardar, estado del backend
+    │   ├── ReviewTable.tsx              # Tabla de datos con menú ⋮ por fila
+    │   ├── InteractionDetailModal.tsx   # Ventana de detalle con editor por formato y acciones HITL
+    │   └── HistoryView.tsx              # Historial y dashboard (se carga al abrir la vista)
+    ├── lib/
+    │   ├── bff.ts                       # BACKEND_URL y respuestas JSON del BFF (solo servidor)
+    │   ├── review.ts                    # Pestañas, etiquetas, campos por formato y armado de filas
+    │   ├── samples.ts                   # Lotes de demostración
+    │   └── simulation.ts                # Resultado simulado para el modo demostración
+    └── types/
+        └── backend.ts                   # Tipos TypeScript de los contratos del backend
 ```
 
-`frontend/.dockerignore` excluye `node_modules` y `.next` del build de Docker: se generan dentro de la imagen.
+`frontend/.dockerignore` excluye `node_modules`, `dist` y `.astro` del build de Docker: se generan dentro de la imagen.
 
 ---
 
 ## 🔄 Arquitectura de Comunicación (BFF)
 
-El navegador nunca llama directamente a FastAPI: usa Route Handlers de Next.js como **Backend-For-Frontend (BFF)**, lo que evita problemas de CORS. En Docker, el proxy llega al backend por `BACKEND_URL=http://backend:8000`.
+El navegador nunca llama directamente a FastAPI: usa endpoints de servidor de Astro (`src/pages/api/*`) como **Backend-For-Frontend (BFF)**, lo que evita problemas de CORS. En Docker, el proxy llega al backend por `BACKEND_URL=http://backend:8000`.
 
 ```
 [Navegador Web / React]
         │
         ▼
-[Next.js API Routes en /api/*]
+[Endpoints Astro en /api/*]
         │
         ▼
 [FastAPI Backend]

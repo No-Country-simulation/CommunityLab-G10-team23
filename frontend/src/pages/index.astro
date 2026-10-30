@@ -1,0 +1,15 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ReviewApp from "@/components/ReviewApp";
+---
+
+<BaseLayout>
+  <!--
+    Una sola isla: la cabecera, la bandeja y el historial comparten el estado del lote
+    (avance, revisión, guardado en OCI). Se renderiza en el servidor y se hidrata al cargar.
+  -->
+  <ReviewApp client:load />
+  <noscript>
+    <p class="p-6 text-sm">Community IA necesita JavaScript para cargar y revisar lotes.</p>
+  </noscript>
+</BaseLayout>

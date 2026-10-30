@@ -1,4 +1,4 @@
-import {
+import type {
   ActivoCandidato,
   AssetCategory,
   EstadoAprobacion,
@@ -44,15 +44,15 @@ export const STATUS_PLURAL: Record<EstadoAprobacion, string> = {
 };
 
 export const STATUS_BADGE: Record<EstadoAprobacion, string> = {
-  pendiente: "bg-amber-50 text-amber-800 ring-amber-200",
-  aprobado: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  rechazado: "bg-rose-50 text-rose-800 ring-rose-200",
+  pendiente: "bg-warning-50 text-warning-800 ring-warning-200",
+  aprobado: "bg-success-50 text-success-800 ring-success-200",
+  rechazado: "bg-danger-50 text-danger-800 ring-danger-200",
 };
 
 export const STATUS_DOT: Record<EstadoAprobacion, string> = {
-  pendiente: "bg-amber-500",
-  aprobado: "bg-emerald-500",
-  rechazado: "bg-rose-500",
+  pendiente: "bg-warning-500",
+  aprobado: "bg-success-500",
+  rechazado: "bg-danger-500",
 };
 
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {

@@ -2,27 +2,33 @@
   "name": "community-lab-frontend",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.23.4"
+  },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "astro dev --port 3000",
+    "build": "astro build",
+    "start": "node ./dist/server/entry.mjs",
+    "preview": "astro preview --port 3000",
+    "check": "astro check"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
+    "@astrojs/node": "^11.1.9",
+    "@astrojs/react": "^7.1.2",
+    "@fontsource-variable/work-sans": "^5.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.4.4",
     "lucide-react": "^1.16.0",
-    "next": "^15.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.0.2"
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.0.0",
+    "@astrojs/check": "^0.9.12",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "postcss": "^8.5.1",
-    "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0"
   }
 }

@@ -1,4 +1,4 @@
-import { SolicitudProcesamiento } from "@/types/backend";
+import type { SolicitudProcesamiento } from "@/types/backend";
 
 // Lotes de prueba para demos mientras los lotes no lleguen desde la nube.
 export const SAMPLES: { key: string; label: string; data: SolicitudProcesamiento }[] = [

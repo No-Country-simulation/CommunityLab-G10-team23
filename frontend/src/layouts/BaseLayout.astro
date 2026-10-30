@@ -1,0 +1,29 @@
+---
+import "@fontsource-variable/work-sans";
+import "@/styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "Community IA - Hub de Distribución y Análisis",
+  description = "Revisión humana del contenido que genera el pipeline de Community IA",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#08002e" />
+    <link rel="icon" href="/logo.jpg" />
+    <title>{title}</title>
+  </head>
+  <body class="min-h-dvh">
+    <slot />
+  </body>
+</html>

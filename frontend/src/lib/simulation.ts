@@ -1,4 +1,4 @@
-import { SolicitudProcesamiento, ResultadoPipeline } from "@/types/backend";
+import type { SolicitudProcesamiento, ResultadoPipeline } from "@/types/backend";
 
 // Resultado simulado para el modo demostración cuando el backend no está disponible.
 export function generateSimulatedPipeline(request: SolicitudProcesamiento): ResultadoPipeline {
@@ -85,7 +85,7 @@ export function generateSimulatedPipeline(request: SolicitudProcesamiento): Resu
           sentimiento: "positivo",
           sentimiento_score: 0.95,
           temas: ["empleabilidad", "hackathon", "comunidad"],
-          entidades: ["CommunityLab", "OCI"],
+          entidades: ["CommunityIA", "OCI"],
           resumen: `Logro compartido por ${item.autor} sobre éxito profesional.`,
           intencion: "compartir_logro",
         },
@@ -103,7 +103,7 @@ export function generateSimulatedPipeline(request: SolicitudProcesamiento): Resu
             tipo_activo: "post_linkedin" as const,
             contenido: {
               titulo: `De la comunidad al empleo tech: Caso ${item.autor}`,
-              copy: `🎉 ¡Felicitaciones a ${item.autor}!\n\n"${item.texto}"\n\nHistorias como esta demuestran el poder de aprender y construir proyectos reales en comunidad. ¡Vamos por más!\n\n#CommunityLab #TechCareers #LogroTech`,
+              copy: `🎉 ¡Felicitaciones a ${item.autor}!\n\n"${item.texto}"\n\nHistorias como esta demuestran el poder de aprender y construir proyectos reales en comunidad. ¡Vamos por más!\n\n#CommunityIA #TechCareers #LogroTech`,
               canal_recomendado: "LinkedIn Oficial",
               potencial_engagement: "Alto",
             },
@@ -160,6 +160,18 @@ export function generateSimulatedPipeline(request: SolicitudProcesamiento): Resu
             },
             estado_aprobacion: "pendiente" as const,
           },
+          // Igual que el backend (_formats_for): FAQ y contenido educativo generan FAQ + LinkedIn.
+          {
+            candidato_id: `cand_ln_faq_${idx}`,
+            tipo_activo: "post_linkedin" as const,
+            contenido: {
+              titulo: "Aprendiendo en comunidad: despliegue de FastAPI y LangGraph",
+              copy: `💡 Una pregunta de la comunidad que vale la pena compartir:\n\n"${item.texto}"\n\nEn Community IA resolvemos estas dudas juntos. ¿Cómo lo resolverías tú?\n\n#CommunityIA #FastAPI #LangGraph`,
+              canal_recomendado: "LinkedIn Oficial",
+              potencial_engagement: "Medio",
+            },
+            estado_aprobacion: "pendiente" as const,
+          },
         ],
       };
     }
@@ -178,7 +190,7 @@ export function generateSimulatedPipeline(request: SolicitudProcesamiento): Resu
         sentimiento: "positivo",
         sentimiento_score: 0.8,
         temas: ["comunidad", "innovación"],
-        entidades: ["CommunityLab"],
+        entidades: ["CommunityIA"],
         resumen: item.texto,
         intencion: "comunicado",
       },
@@ -196,9 +208,20 @@ export function generateSimulatedPipeline(request: SolicitudProcesamiento): Resu
           tipo_activo: "post_linkedin" as const,
           contenido: {
             titulo: "Actualización y Hitos de la Comunidad",
-            copy: `🚀 Novedades en Community Lab:\n\n${item.texto}\n\n¡Gracias a todos los que hacen posible este espacio colaborativo!\n\n#CommunityLab #Innovacion`,
+            copy: `🚀 Novedades en Community IA:\n\n${item.texto}\n\n¡Gracias a todos los que hacen posible este espacio colaborativo!\n\n#CommunityIA #Innovacion`,
             canal_recomendado: "LinkedIn Oficial",
             potencial_engagement: "Medio-Alto",
+          },
+          estado_aprobacion: "pendiente" as const,
+        },
+        // Igual que el backend (_formats_for): destacados y posts sociales generan LinkedIn + Newsletter.
+        {
+          candidato_id: `cand_nl_comm_${idx}`,
+          tipo_activo: "destaque_newsletter_semanal" as const,
+          contenido: {
+            seccion: "Vida de la comunidad",
+            titular: "Hitos de la comunidad esta semana",
+            resumen: `${item.autor} compartió una novedad en ${item.canal}: ${item.texto}`,
           },
           estado_aprobacion: "pendiente" as const,
         },
@@ -207,7 +230,7 @@ export function generateSimulatedPipeline(request: SolicitudProcesamiento): Resu
   });
 
   return {
-    origen_comunidad: request.origen_comunidad || "CommunityLab",
+    origen_comunidad: request.origen_comunidad || "CommunityIA",
     periodo_referencia: request.periodo_referencia || "Semana_04",
     interacciones_procesadas: processed,
   };

@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Cloud,
   RefreshCw,
@@ -13,11 +11,9 @@ import {
   Eye,
   FileCode,
   Search,
-  CheckCircle2,
   BarChart3,
   Sparkles,
   MessageSquare,
-  Tag,
   Send,
   Calendar,
   ArrowUpDown,
@@ -30,6 +26,10 @@ import {
 } from "lucide-react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { CATEGORY_LABELS } from "@/lib/review";
+import { PageHeader } from "@/components/PageHeader";
+import { BarList, ChartCard, RingChart, StackedColumns } from "@/components/DashboardCharts";
+import { StatusCards } from "@/components/StatusCards";
+import { ChannelTabs, DetailColumns, DetailPanel, EstadoPill, InteractionSummary, PanelTitle } from "@/components/DetailPanel";
 
 interface CasoItem {
   interaccion: {
@@ -158,10 +158,15 @@ function formatFechaLegible(fechaStr?: string): string {
   }
 }
 
-export function HistoryView() {
+interface HistoryViewProps {
+  view: "tabla" | "dashboard";
+  onViewChange: (view: "tabla" | "dashboard") => void;
+}
+
+export function HistoryView({ view: activeView, onViewChange: setActiveView }: HistoryViewProps) {
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [isLoadingList, setIsLoadingList] = useState(false);
-  const [activeView, setActiveView] = useState<"tabla" | "dashboard">("tabla");
+  const [listError, setListError] = useState<string | null>(null);
 
   // Modal de inspección
   const [inspectCase, setInspectCase] = useState<FlatCase | null>(null);
@@ -172,7 +177,7 @@ export function HistoryView() {
 
   // Filtros de la tabla e historial
   const [channelFilter, setChannelFilter] = useState<"todos" | "post_linkedin" | "destaque_newsletter_semanal" | "sugerencia_contenido_faq">("todos");
-  const [statusFilter, setStatusFilter] = useState<"todos" | "aprobados" | "rechazados">("todos");
+  const [statusFilter, setStatusFilter] = useState<"todos" | "aprobado" | "rechazado">("todos");
   const [categoryFilter, setCategoryFilter] = useState<string>("todas");
   const [sentimentFilter, setSentimentFilter] = useState<string>("todos");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -199,14 +204,18 @@ export function HistoryView() {
 
   const fetchPackagesList = async () => {
     setIsLoadingList(true);
+    setListError(null);
     try {
       const res = await fetch("/api/storage/packages");
       const json = await res.json().catch(() => null);
       if (res.ok && Array.isArray(json?.packages)) {
         setPackages(json.packages);
+      } else if (!res.ok) {
+        setListError(typeof json?.detail === "string" ? json.detail : json?.error ?? `HTTP ${res.status}`);
       }
     } catch (err) {
       console.error("Error al listar paquetes:", err);
+      setListError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsLoadingList(false);
     }
@@ -298,9 +307,9 @@ export function HistoryView() {
       // 2. Filtro por estado
       if (statusFilter !== "todos") {
         const statuses = (c.activos_candidatos || []).map((cand) => cand.estado_aprobacion);
-        if (statusFilter === "aprobados") {
+        if (statusFilter === "aprobado") {
           if (!statuses.includes("aprobado")) return false;
-        } else if (statusFilter === "rechazados") {
+        } else if (statusFilter === "rechazado") {
           if (!statuses.includes("rechazado")) return false;
         }
       }
@@ -465,7 +474,6 @@ export function HistoryView() {
     let totalCandidatos = 0;
     let totalAprobados = 0;
     let totalRechazados = 0;
-    let totalPendientes = 0;
 
     let sumSentiment = 0;
     let sentimentCount = 0;
@@ -503,7 +511,6 @@ export function HistoryView() {
         totalCandidatos++;
         if (cand.estado_aprobacion === "aprobado") totalAprobados++;
         else if (cand.estado_aprobacion === "rechazado") totalRechazados++;
-        else totalPendientes++;
 
         const ch = cand.tipo_activo as keyof typeof channelStats;
         if (channelStats[ch]) {
@@ -542,7 +549,6 @@ export function HistoryView() {
       totalCandidatos,
       totalAprobados,
       totalRechazados,
-      totalPendientes,
       tasaAprobacion,
       avgSentiment,
       avgRelevance,
@@ -562,7 +568,7 @@ export function HistoryView() {
       fecha_exportacion: new Date().toISOString(),
       paquetes: packages,
     };
-    const filename = `communitylab-consolidado-${new Date().toISOString().slice(0, 10)}.json`;
+    const filename = `communityia-consolidado-${new Date().toISOString().slice(0, 10)}.json`;
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
       type: "application/json",
@@ -602,171 +608,103 @@ export function HistoryView() {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-slate-50 overflow-hidden h-full">
-      {/* 1. ENCABEZADO SUPERIOR */}
-      <div className="bg-white border-b border-slate-200 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 shadow-2xs">
-        <div>
-          <h2 className="text-base font-bold text-slate-900">
-            Historial y Analítica
-          </h2>
-          <p className="text-xs text-slate-500">
-            Paquetes JSON consolidados
-          </p>
-        </div>
-
-        {/* Pestañas de Vista: [ Tabla de Casos ] [ Dashboard de Comunidad ] */}
-        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
-          <button
-            onClick={() => setActiveView("tabla")}
-            className={`text-xs px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer ${
-              activeView === "tabla"
-                ? "bg-white text-indigo-700 shadow-2xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <TableIcon className="w-3.5 h-3.5" />
-            Tabla de Casos ({sortedCases.length})
-          </button>
-          <button
-            onClick={() => setActiveView("dashboard")}
-            className={`text-xs px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition cursor-pointer ${
-              activeView === "dashboard"
-                ? "bg-white text-indigo-700 shadow-2xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            Dashboard de Comunidad
-          </button>
-        </div>
-
-        {/* Botones de acción derecha */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={fetchPackagesList}
-            disabled={isLoadingList}
-            className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            title="Actualizar datos consolidados"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingList ? "animate-spin text-indigo-600" : ""}`} />
-            Actualizar
-          </button>
-
-          <button
-            onClick={downloadCurrentJSON}
-            className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
-            title="Descargar paquete(s) en formato JSON"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Descargar JSON
-          </button>
-        </div>
-      </div>
+    <div className="flex-1 flex flex-col bg-ink-50 overflow-hidden h-full">
+      {/* 1. ENCABEZADO: la vista (tabla o dashboard) se elige en la navegación lateral */}
+      <PageHeader
+        icon={activeView === "tabla" ? <TableIcon className="w-[27px] h-[27px]" /> : <BarChart3 className="w-[27px] h-[27px]" />}
+        title={activeView === "tabla" ? "Tabla de casos" : "Dashboard de comunidad"}
+        subtitle={
+          activeView === "tabla"
+            ? `Historial de paquetes JSON consolidados · ${sortedCases.length} casos`
+            : "Métricas de los paquetes JSON consolidados"
+        }
+        actions={
+          <>
+            <button
+              onClick={fetchPackagesList}
+              disabled={isLoadingList}
+              className="btn-ghost"
+              title="Actualizar datos consolidados"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingList ? "animate-spin" : ""}`} />
+              Actualizar
+            </button>
+            <button onClick={downloadCurrentJSON} className="btn-primary" title="Descargar paquete(s) en formato JSON">
+              <Download className="w-4 h-4" />
+              Descargar JSON
+            </button>
+          </>
+        }
+      />
 
       {/* 2. VISTA: TABLA DE CASOS */}
       {activeView === "tabla" && (
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Nivel 1: Canales */}
-          <nav className="bg-white border-b border-slate-200 px-6 flex gap-1 overflow-x-auto shadow-2xs" role="tablist">
-            {[
-              { key: "todos", label: "Todos los Canales" },
-              { key: "post_linkedin", label: "LinkedIn" },
-              { key: "destaque_newsletter_semanal", label: "Newsletter" },
-              { key: "sugerencia_contenido_faq", label: "FAQ" },
-            ].map((ch) => {
-              const selected = channelFilter === ch.key;
-              return (
-                <button
-                  key={ch.key}
-                  role="tab"
-                  aria-selected={selected}
-                  onClick={() => setChannelFilter(ch.key as any)}
-                  className={`px-3.5 py-2.5 text-xs font-semibold border-b-2 -mb-px flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
-                    selected
-                      ? "border-indigo-600 text-indigo-600"
-                      : "border-transparent text-slate-500 hover:text-slate-800"
-                  }`}
-                >
-                  {ch.label}
-                </button>
-              );
-            })}
-          </nav>
+          {/* Nivel 1: estados (tarjetas resumen seleccionables) */}
+          <div className="bg-white px-4 sm:px-5 pb-4">
+            <StatusCards
+              active={statusFilter}
+              onSelect={setStatusFilter}
+              cards={[
+                {
+                  key: "todos",
+                  count: statusCounts.todos,
+                  metric: `de ${dateFilteredCases.length} casos en el período`,
+                },
+                {
+                  key: "aprobado",
+                  count: statusCounts.aprobados,
+                  metric: `${statusCounts.todos > 0 ? Math.round((statusCounts.aprobados / statusCounts.todos) * 100) : 0}% de los casos con algún activo aprobado`,
+                },
+                {
+                  key: "rechazado",
+                  count: statusCounts.rechazados,
+                  metric: `${statusCounts.todos > 0 ? Math.round((statusCounts.rechazados / statusCounts.todos) * 100) : 0}% de los casos con algún activo rechazado`,
+                },
+              ]}
+            />
+          </div>
 
-          {/* Nivel 2: Estado de aprobación (Todos, Aprobados, Rechazados) */}
-          <div className="bg-white border-b border-slate-200 px-6 py-2 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-500 mr-1">Estado:</span>
-              <div className="inline-flex rounded-lg bg-slate-100 p-0.5" role="group">
-                <button
-                  onClick={() => setStatusFilter("todos")}
-                  className={`text-xs px-3 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                    statusFilter === "todos"
-                      ? "bg-white text-indigo-700 font-bold shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <span>Todos</span>
-                  <span
-                    className={`text-[11px] ${
-                      statusFilter === "todos" ? "text-indigo-600 font-bold" : "text-slate-400"
+          {/* Nivel 2: filtro por contenido (canal) */}
+          <div className="bg-white border-b border-ink-200 px-4 sm:px-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+            <nav className="flex gap-1 overflow-x-auto -mb-px max-w-full" role="tablist" aria-label="Filtrar por canal">
+              {[
+                { key: "todos", label: "Todos los Canales" },
+                { key: "post_linkedin", label: "LinkedIn" },
+                { key: "destaque_newsletter_semanal", label: "Newsletter" },
+                { key: "sugerencia_contenido_faq", label: "FAQ" },
+              ].map((ch) => {
+                const selected = channelFilter === ch.key;
+                return (
+                  <button
+                    key={ch.key}
+                    role="tab"
+                    aria-selected={selected}
+                    onClick={() => setChannelFilter(ch.key as any)}
+                    className={`px-3.5 py-2.5 text-sm font-medium border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+                      selected
+                        ? "border-brand-600 text-brand-700"
+                        : "border-transparent text-ink-500 hover:text-ink-900"
                     }`}
                   >
-                    ({statusCounts.todos})
-                  </span>
-                </button>
-                <button
-                  onClick={() => setStatusFilter("aprobados")}
-                  className={`text-xs px-3 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                    statusFilter === "aprobados"
-                      ? "bg-white text-emerald-700 font-bold shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                  <span>Aprobados</span>
-                  <span
-                    className={`text-[11px] ${
-                      statusFilter === "aprobados" ? "text-emerald-700 font-bold" : "text-slate-400"
-                    }`}
-                  >
-                    ({statusCounts.aprobados})
-                  </span>
-                </button>
-                <button
-                  onClick={() => setStatusFilter("rechazados")}
-                  className={`text-xs px-3 py-1 rounded-md font-medium transition cursor-pointer flex items-center gap-1.5 ${
-                    statusFilter === "rechazados"
-                      ? "bg-white text-rose-700 font-bold shadow-2xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
-                  <span>Rechazados</span>
-                  <span
-                    className={`text-[11px] ${
-                      statusFilter === "rechazados" ? "text-rose-700 font-bold" : "text-slate-400"
-                    }`}
-                  >
-                    ({statusCounts.rechazados})
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            <div className="text-xs text-slate-500">
-              Mostrando <strong className="text-slate-800">{filteredCases.length}</strong> de{" "}
-              <strong className="text-slate-800">{dateFilteredCases.length}</strong> casos registrados
-            </div>
+                    {ch.label}
+                  </button>
+                );
+              })}
+            </nav>
+            <p className="text-xs text-ink-500 pb-2.5">
+              Mostrando <strong className="text-ink-800">{filteredCases.length}</strong> de{" "}
+              <strong className="text-ink-800">{dateFilteredCases.length}</strong> casos registrados
+            </p>
           </div>
 
           {/* Nivel 3: Filtros por Período, Categoría, Sentimiento y Búsqueda */}
-          <div className="bg-slate-50/70 border-b border-slate-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          <div className="bg-ink-50/70 border-b border-ink-200 px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-3 flex-wrap">
               {/* 1. Selector de Rango de Fechas */}
               <div className="flex items-center gap-1.5">
-                <label htmlFor="date-range-select" className="text-xs font-semibold text-slate-600 flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                <label htmlFor="date-range-select" className="text-xs font-semibold text-ink-600 flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5 text-brand-600" />
                   Período:
                 </label>
                 <select
@@ -781,7 +719,7 @@ export function HistoryView() {
                       setCustomEndDate(today);
                     }
                   }}
-                  className="text-xs border border-slate-300 rounded-lg px-2.5 py-1 bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  className="text-xs border border-ink-300 rounded-lg px-2.5 py-1 bg-white text-ink-800 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
                 >
                   <option value="todas">Todas las fechas (Total)</option>
                   <option value="hoy">Hoy</option>
@@ -791,39 +729,39 @@ export function HistoryView() {
                 </select>
 
                 {dateRange === "personalizado" && (
-                  <div className="flex items-center gap-1.5 text-xs ml-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-                    <span className="text-[11px] font-semibold text-slate-600">Desde:</span>
+                  <div className="flex items-center gap-1.5 text-xs ml-1 bg-ink-100 px-2 py-0.5 rounded-lg border border-ink-200">
+                    <span className="text-[11px] font-semibold text-ink-600">Desde:</span>
                     <input
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="border border-slate-300 rounded px-1.5 py-0.5 text-xs text-slate-800 bg-white font-medium focus:ring-1 focus:ring-indigo-500"
+                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-white font-medium focus:ring-1 focus:ring-brand-500"
                       title="Fecha desde"
                     />
-                    <span className="text-[11px] font-semibold text-slate-600 ml-1">Hasta:</span>
+                    <span className="text-[11px] font-semibold text-ink-600 ml-1">Hasta:</span>
                     <input
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="border border-slate-300 rounded px-1.5 py-0.5 text-xs text-slate-800 bg-white font-medium focus:ring-1 focus:ring-indigo-500"
+                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-white font-medium focus:ring-1 focus:ring-brand-500"
                       title="Fecha hasta"
                     />
                   </div>
                 )}
               </div>
 
-              <div className="h-5 w-px bg-slate-200" />
+              <div className="h-5 w-px bg-ink-200" />
 
               {/* 2. Filtro por Categoría */}
               <div className="flex items-center gap-1">
-                <label htmlFor="cat-filter" className="text-xs font-medium text-slate-500">
+                <label htmlFor="cat-filter" className="text-xs font-medium text-ink-500">
                   Categoría:
                 </label>
                 <select
                   id="cat-filter"
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[130px] truncate"
+                  className="text-xs border border-ink-200 rounded-lg px-2 py-1 bg-white text-ink-700 font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer max-w-[130px] truncate"
                 >
                   <option value="todas">Todas</option>
                   {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
@@ -836,14 +774,14 @@ export function HistoryView() {
 
               {/* 3. Filtro por Sentimiento */}
               <div className="flex items-center gap-1">
-                <label htmlFor="sent-filter" className="text-xs font-medium text-slate-500">
+                <label htmlFor="sent-filter" className="text-xs font-medium text-ink-500">
                   Sentimiento:
                 </label>
                 <select
                   id="sent-filter"
                   value={sentimentFilter}
                   onChange={(e) => setSentimentFilter(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  className="text-xs border border-ink-200 rounded-lg px-2 py-1 bg-white text-ink-700 font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   <option value="positivo">Positivo</option>
@@ -856,7 +794,7 @@ export function HistoryView() {
               {hasActiveFilters && (
                 <button
                   onClick={clearAllFilters}
-                  className="text-xs text-rose-600 hover:text-rose-800 font-semibold flex items-center gap-1 px-2 py-1 rounded bg-rose-50 hover:bg-rose-100 transition cursor-pointer"
+                  className="text-xs text-danger-600 hover:text-danger-800 font-semibold flex items-center gap-1 px-2 py-1 rounded bg-danger-50 hover:bg-danger-100 transition cursor-pointer"
                   title="Restablecer todos los filtros"
                 >
                   <X className="w-3 h-3" />
@@ -867,18 +805,18 @@ export function HistoryView() {
 
             {/* Buscador */}
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-ink-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar autor, canal, #tema…"
-                className="text-xs pl-8 pr-7 py-1.5 w-60 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                className="text-xs pl-8 pr-7 py-1.5 w-60 rounded-lg border border-ink-200 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-500 hover:text-ink-600 p-0.5 cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -887,41 +825,56 @@ export function HistoryView() {
           </div>
 
           {/* TABLA DE CONTENIDO */}
-          <div className="flex-1 overflow-auto p-6 bg-slate-50">
-            {sortedCases.length === 0 ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-12 text-center max-w-md mx-auto my-8 shadow-xs">
-                <Cloud className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                <h3 className="text-sm font-bold text-slate-800 mb-1">No se encontraron casos</h3>
-                <p className="text-xs text-slate-500 mb-4">
+          <div className="flex-1 overflow-auto p-6 bg-ink-50">
+            {listError && packages.length === 0 ? (
+              <div role="alert" className="bg-white rounded-xl border border-danger-200 p-12 text-center max-w-md mx-auto my-8 shadow-xs">
+                <Cloud className="w-10 h-10 text-danger-400 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-ink-800 mb-1">No se pudo cargar el historial</h3>
+                <p className="text-xs text-ink-500 mb-4">
+                  El almacenamiento no respondió ({listError}). Comprueba que el backend esté en marcha y vuelve a intentarlo.
+                </p>
+                <button
+                  onClick={fetchPackagesList}
+                  disabled={isLoadingList}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 font-semibold hover:bg-brand-100 transition cursor-pointer disabled:opacity-40"
+                >
+                  {isLoadingList ? "Reintentando…" : "Reintentar"}
+                </button>
+              </div>
+            ) : sortedCases.length === 0 ? (
+              <div className="bg-white rounded-xl border border-ink-200 p-12 text-center max-w-md mx-auto my-8 shadow-xs">
+                <Cloud className="w-10 h-10 text-ink-300 mx-auto mb-3" />
+                <h3 className="text-sm font-bold text-ink-800 mb-1">No se encontraron casos</h3>
+                <p className="text-xs text-ink-500 mb-4">
                   Prueba cambiando el período de fechas o ajustando los filtros de canal, estado o categoría.
                 </p>
                 {hasActiveFilters && (
                   <button
                     onClick={clearAllFilters}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 font-semibold hover:bg-indigo-100 transition cursor-pointer"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 font-semibold hover:bg-brand-100 transition cursor-pointer"
                   >
                     Restablecer filtros
                   </button>
                 )}
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs flex flex-col">
+              <div className="bg-white border border-ink-200 rounded-xl overflow-hidden shadow-xs flex flex-col">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-700">
-                    <thead className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-600 uppercase tracking-wider text-[11px] select-none">
+                  <table className="data-table w-full text-left text-xs text-ink-700">
+                    <thead className="select-none">
                       <tr>
                         {/* Columna 1: # Índice Correlativo */}
                         <th
                           onClick={() => handleSort("index")}
-                          className="py-3 px-3 text-center cursor-pointer hover:bg-slate-100 transition w-14"
+                          className="py-3 px-3 text-center cursor-pointer hover:bg-ink-100 transition w-14"
                           title="Ordenar por número de fila"
                         >
                           <div className="inline-flex items-center gap-1">
                             <span>#</span>
                             {sortColumn === "index" ? (
-                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-indigo-600" /> : <ArrowDown className="w-3 h-3 text-indigo-600" />
+                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />
                             ) : (
-                              <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-50" />
+                              <ArrowUpDown className="w-3 h-3 text-ink-500 opacity-50" />
                             )}
                           </div>
                         </th>
@@ -929,15 +882,15 @@ export function HistoryView() {
                         {/* Columna 2: Fecha */}
                         <th
                           onClick={() => handleSort("fecha")}
-                          className="py-3 px-4 cursor-pointer hover:bg-slate-100 transition"
+                          className="py-3 px-4 cursor-pointer hover:bg-ink-100 transition"
                           title="Ordenar cronológicamente"
                         >
                           <div className="flex items-center gap-1">
                             <span>Fecha</span>
                             {sortColumn === "fecha" ? (
-                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-indigo-600" /> : <ArrowDown className="w-3 h-3 text-indigo-600" />
+                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />
                             ) : (
-                              <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-50" />
+                              <ArrowUpDown className="w-3 h-3 text-ink-500 opacity-50" />
                             )}
                           </div>
                         </th>
@@ -945,37 +898,37 @@ export function HistoryView() {
                         {/* Columna 3: Autor */}
                         <th
                           onClick={() => handleSort("autor")}
-                          className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition"
+                          className="py-3 px-3 cursor-pointer hover:bg-ink-100 transition"
                           title="Ordenar alfabéticamente por autor"
                         >
                           <div className="flex items-center gap-1">
                             <span>Autor</span>
                             {sortColumn === "autor" ? (
-                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-indigo-600" /> : <ArrowDown className="w-3 h-3 text-indigo-600" />
+                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />
                             ) : (
-                              <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-50" />
+                              <ArrowUpDown className="w-3 h-3 text-ink-500 opacity-50" />
                             )}
                           </div>
                         </th>
 
                         {/* Columna 4: Canal de Origen */}
-                        <th className="py-3 px-3">Canal</th>
+                        <th >Canal</th>
 
                         {/* Columna 5: Categoría */}
-                        <th className="py-3 px-3">Categoría</th>
+                        <th >Categoría</th>
 
                         {/* Columna 6: Sentimiento */}
                         <th
                           onClick={() => handleSort("sentimiento")}
-                          className="py-3 px-3 cursor-pointer hover:bg-slate-100 transition"
+                          className="py-3 px-3 cursor-pointer hover:bg-ink-100 transition"
                           title="Ordenar por polaridad de sentimiento"
                         >
                           <div className="flex items-center gap-1">
                             <span>Sentimiento</span>
                             {sortColumn === "sentimiento" ? (
-                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-indigo-600" /> : <ArrowDown className="w-3 h-3 text-indigo-600" />
+                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />
                             ) : (
-                              <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-50" />
+                              <ArrowUpDown className="w-3 h-3 text-ink-500 opacity-50" />
                             )}
                           </div>
                         </th>
@@ -983,27 +936,27 @@ export function HistoryView() {
                         {/* Columna 7: Relevancia */}
                         <th
                           onClick={() => handleSort("relevancia")}
-                          className="py-3 px-3 text-center cursor-pointer hover:bg-slate-100 transition"
+                          className="py-3 px-3 text-center cursor-pointer hover:bg-ink-100 transition"
                           title="Ordenar por score de relevancia editorial"
                         >
                           <div className="inline-flex items-center gap-1">
                             <span>Relevancia</span>
                             {sortColumn === "relevancia" ? (
-                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-indigo-600" /> : <ArrowDown className="w-3 h-3 text-indigo-600" />
+                              sortDirection === "asc" ? <ArrowUp className="w-3 h-3 text-brand-600" /> : <ArrowDown className="w-3 h-3 text-brand-600" />
                             ) : (
-                              <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-50" />
+                              <ArrowUpDown className="w-3 h-3 text-ink-500 opacity-50" />
                             )}
                           </div>
                         </th>
 
                         {/* Columna 8: Activos Generados */}
-                        <th className="py-3 px-3">Activos</th>
+                        <th >Activos</th>
 
                         {/* Columna 9: Detalle */}
-                        <th className="py-3 px-3 text-center">Acción</th>
+                        <th className="text-center">Acción</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-ink-100">
                       {pagedCases.map((caso, idx) => {
                         const globalIndex = (currentPage - 1) * pageSize + idx + 1;
                         const score = caso.oportunidad?.relevance_score ?? 0;
@@ -1014,18 +967,19 @@ export function HistoryView() {
                           <tr
                             key={`${caso.interaccion.id}-${idx}`}
                             onClick={() => openCaseModal(caso)}
-                            className="hover:bg-slate-50/80 transition cursor-pointer"
+                            data-selected={inspectCase === caso}
+                            className="cursor-pointer"
                           >
                             {/* # Índice Correlativo */}
-                            <td className="py-3 px-3 text-center whitespace-nowrap">
-                              <span className="font-mono text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                            <td className="text-center whitespace-nowrap">
+                              <span className="font-mono text-[11px] font-bold text-ink-500 bg-ink-100 px-2 py-0.5 rounded-md">
                                 #{globalIndex}
                               </span>
                             </td>
 
                             {/* Fecha */}
-                            <td className="py-3 px-4 whitespace-nowrap">
-                              <div className="font-medium text-slate-800">
+                            <td className="whitespace-nowrap">
+                              <div className="font-medium text-ink-800">
                                 {caso.interaccion.timestamp
                                   ? formatFechaLegible(caso.interaccion.timestamp)
                                   : caso.paqueteFecha || "--"}
@@ -1033,20 +987,20 @@ export function HistoryView() {
                             </td>
 
                             {/* Autor */}
-                            <td className="py-3 px-3 font-semibold text-slate-900 whitespace-nowrap">
+                            <td className="font-semibold text-ink-900 whitespace-nowrap">
                               {caso.interaccion.autor}
                             </td>
 
                             {/* Canal */}
-                            <td className="py-3 px-3 whitespace-nowrap">
-                              <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-[11px] text-slate-700">
+                            <td className="whitespace-nowrap">
+                              <span className="px-2 py-0.5 rounded bg-ink-100 font-mono text-[11px] text-ink-700">
                                 {caso.interaccion.canal}
                               </span>
                             </td>
 
                             {/* Categoría */}
-                            <td className="py-3 px-3 whitespace-nowrap font-medium text-slate-700">
-                              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            <td className="whitespace-nowrap font-medium text-ink-700">
+                              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-ink-100 text-ink-700 border border-ink-200">
                                 {CATEGORY_LABELS[caso.oportunidad?.categoria as keyof typeof CATEGORY_LABELS] ||
                                   caso.oportunidad?.categoria ||
                                   "--"}
@@ -1054,14 +1008,14 @@ export function HistoryView() {
                             </td>
 
                             {/* Sentimiento */}
-                            <td className="py-3 px-3 whitespace-nowrap">
+                            <td className="whitespace-nowrap">
                               <span
                                 className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
                                   sent.includes("pos")
-                                    ? "bg-emerald-100 text-emerald-800"
+                                    ? "bg-success-100 text-success-800"
                                     : sent.includes("neg")
-                                    ? "bg-rose-100 text-rose-800"
-                                    : "bg-slate-100 text-slate-700"
+                                    ? "bg-danger-100 text-danger-800"
+                                    : "bg-ink-100 text-ink-700"
                                 }`}
                               >
                                 {sent}
@@ -1069,14 +1023,14 @@ export function HistoryView() {
                             </td>
 
                             {/* Relevancia */}
-                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                            <td className="text-center whitespace-nowrap">
                               <span
                                 className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                                   score >= 70
-                                    ? "bg-indigo-100 text-indigo-800"
+                                    ? "bg-brand-100 text-brand-800"
                                     : score >= 40
-                                    ? "bg-amber-100 text-amber-800"
-                                    : "bg-slate-100 text-slate-600"
+                                    ? "bg-warning-100 text-warning-800"
+                                    : "bg-ink-100 text-ink-600"
                                 }`}
                               >
                                 {score.toFixed(0)}
@@ -1084,7 +1038,7 @@ export function HistoryView() {
                             </td>
 
                             {/* Activos */}
-                            <td className="py-3 px-3">
+                            <td>
                               <div className="flex flex-wrap gap-1">
                                 {candidatos.length > 0 ? (
                                   candidatos.map((c) => (
@@ -1092,10 +1046,10 @@ export function HistoryView() {
                                       key={c.candidato_id}
                                       className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
                                         c.estado_aprobacion === "aprobado"
-                                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                          ? "bg-success-50 text-success-700 border-success-200"
                                           : c.estado_aprobacion === "rechazado"
-                                          ? "bg-rose-50 text-rose-700 border-rose-200"
-                                          : "bg-amber-50 text-amber-700 border-amber-200"
+                                          ? "bg-danger-50 text-danger-700 border-danger-200"
+                                          : "bg-warning-50 text-warning-700 border-warning-200"
                                       }`}
                                       title={`${c.tipo_activo} (${c.estado_aprobacion})`}
                                     >
@@ -1107,16 +1061,16 @@ export function HistoryView() {
                                     </span>
                                   ))
                                 ) : (
-                                  <span className="text-slate-400 text-[11px] italic">Sin activos</span>
+                                  <span className="text-ink-500 text-[11px] italic">Sin activos</span>
                                 )}
                               </div>
                             </td>
 
                             {/* Acción */}
-                            <td className="py-3 px-3 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <td className="text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => openCaseModal(caso)}
-                                className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold transition cursor-pointer border border-indigo-200 shadow-2xs"
+                                className="table-action text-xs font-medium px-2.5!"
                                 title="Ver activo oficial y detalles"
                               >
                                 <Eye className="w-3.5 h-3.5" />
@@ -1131,21 +1085,21 @@ export function HistoryView() {
                 </div>
 
                 {/* 3. PAGINADOR EN EL PIE DE LA TABLA */}
-                <div className="bg-white border-t border-slate-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 shadow-2xs">
+                <div className="bg-white border-t border-ink-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 text-xs text-ink-600 shadow-2xs">
                   <div className="flex items-center gap-2">
                     <span>
                       Mostrando{" "}
-                      <strong className="text-slate-900">
+                      <strong className="text-ink-900">
                         {sortedCases.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
                       </strong>{" "}
                       a{" "}
-                      <strong className="text-slate-900">
+                      <strong className="text-ink-900">
                         {Math.min(currentPage * pageSize, sortedCases.length)}
                       </strong>{" "}
-                      de <strong className="text-slate-900">{sortedCases.length}</strong> casos
+                      de <strong className="text-ink-900">{sortedCases.length}</strong> casos
                     </span>
                     {sortedCases.length !== allCases.length && (
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-ink-500">
                         (filtrados de {allCases.length} totales)
                       </span>
                     )}
@@ -1155,7 +1109,7 @@ export function HistoryView() {
                     <button
                       onClick={() => setCurrentPage(1)}
                       disabled={currentPage === 1}
-                      className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      className="p-1.5 rounded-lg border border-ink-200 text-ink-600 hover:bg-ink-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       title="Primera página"
                     >
                       <ChevronsLeft className="w-3.5 h-3.5" />
@@ -1163,20 +1117,20 @@ export function HistoryView() {
                     <button
                       onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      className="p-1.5 rounded-lg border border-ink-200 text-ink-600 hover:bg-ink-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       title="Página anterior"
                     >
                       <ChevronLeft className="w-3.5 h-3.5" />
                     </button>
 
-                    <span className="px-3 py-1 font-semibold text-slate-800 bg-slate-50 border border-slate-200 rounded-lg">
+                    <span className="px-3 py-1 font-semibold text-ink-800 bg-ink-50 border border-ink-200 rounded-lg">
                       Página {currentPage} de {totalPages}
                     </span>
 
                     <button
                       onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
-                      className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      className="p-1.5 rounded-lg border border-ink-200 text-ink-600 hover:bg-ink-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       title="Página siguiente"
                     >
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -1184,20 +1138,20 @@ export function HistoryView() {
                     <button
                       onClick={() => setCurrentPage(totalPages)}
                       disabled={currentPage === totalPages}
-                      className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      className="p-1.5 rounded-lg border border-ink-200 text-ink-600 hover:bg-ink-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                       title="Última página"
                     >
                       <ChevronsRight className="w-3.5 h-3.5" />
                     </button>
 
-                    <div className="h-4 w-px bg-slate-200 mx-1" />
+                    <div className="h-4 w-px bg-ink-200 mx-1" />
 
                     <div className="flex items-center gap-1">
-                      <span className="text-slate-500">Filas:</span>
+                      <span className="text-ink-500">Filas:</span>
                       <select
                         value={pageSize}
                         onChange={(e) => setPageSize(Number(e.target.value))}
-                        className="border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                        className="border border-ink-200 rounded-lg px-2 py-1 bg-white text-ink-700 font-semibold focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
                       >
                         <option value={10}>10</option>
                         <option value={15}>15</option>
@@ -1214,15 +1168,15 @@ export function HistoryView() {
         </div>
       )}
 
-      {/* 3. VISTA: DASHBOARD DE COMUNIDAD */}
+      {/* 3. VISTA: DASHBOARD DE COMUNIDAD — gráficos basados en Smart Charts Kit */}
       {activeView === "dashboard" && (
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 pb-8 pt-2 space-y-5 bg-white">
           {/* Selector de alcance temporal dentro del dashboard */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div className="chart-card px-5 py-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <label htmlFor="dash-date-select" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                <label htmlFor="dash-date-select" className="text-xs font-bold text-ink-700 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-brand-600" />
                   Período analizado:
                 </label>
                 <select
@@ -1237,7 +1191,7 @@ export function HistoryView() {
                       setCustomEndDate(today);
                     }
                   }}
-                  className="text-xs border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  className="max-w-full text-sm border border-[rgb(4_1_16/0.1)] rounded-full px-3.5 py-2 bg-white text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
                 >
                   <option value="todas">Todas las fechas (Consolidado completo)</option>
                   <option value="hoy">Hoy</option>
@@ -1247,21 +1201,21 @@ export function HistoryView() {
                 </select>
 
                 {dateRange === "personalizado" && (
-                  <div className="flex items-center gap-1.5 text-xs ml-1 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-                    <span className="text-[11px] font-semibold text-slate-600">Desde:</span>
+                  <div className="flex items-center gap-1.5 text-xs ml-1 bg-ink-100 px-2 py-0.5 rounded-lg border border-ink-200">
+                    <span className="text-[11px] font-semibold text-ink-600">Desde:</span>
                     <input
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="border border-slate-300 rounded px-1.5 py-0.5 text-xs text-slate-800 bg-white font-medium focus:ring-1 focus:ring-indigo-500"
+                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-white font-medium focus:ring-1 focus:ring-brand-500"
                       title="Fecha desde"
                     />
-                    <span className="text-[11px] font-semibold text-slate-600 ml-1">Hasta:</span>
+                    <span className="text-[11px] font-semibold text-ink-600 ml-1">Hasta:</span>
                     <input
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="border border-slate-300 rounded px-1.5 py-0.5 text-xs text-slate-800 bg-white font-medium focus:ring-1 focus:ring-indigo-500"
+                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-white font-medium focus:ring-1 focus:ring-brand-500"
                       title="Fecha hasta"
                     />
                   </div>
@@ -1269,799 +1223,462 @@ export function HistoryView() {
               </div>
             </div>
 
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-ink-500">
               Métricas calculadas sobre <strong>{dashboardStats.totalCasos}</strong> casos de la comunidad.
             </div>
           </div>
 
-          {/* 4 TARJETAS KPI PRINCIPALES */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* KPI 1 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between">
+          {/* Métricas principales: total de interacciones (destacado) y estado de los activos */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <section
+              className="lg:col-span-4 rounded-2xl p-6 text-white flex flex-col justify-between gap-6 shadow-[0_5px_25px_rgb(0_0_0/0.1)]"
+              style={{ backgroundImage: "var(--gradient-secondary)" }}
+            >
               <div>
-                <span className="text-xs font-semibold text-slate-500 block">Total Interacciones</span>
-                <span className="text-2xl font-black text-slate-900 mt-1 block">{dashboardStats.totalCasos}</span>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">
-                  {packages.length} paquete(s) registrados
-                </span>
+                <h2 className="text-sm text-white/80 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  Total de interacciones
+                </h2>
+                <p className="text-6xl font-semibold leading-none mt-3 tabular-nums">{dashboardStats.totalCasos}</p>
+                <p className="text-sm text-white/80 mt-2">{packages.length} paquete(s) registrados</p>
               </div>
-              <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-            </div>
+              <dl className="grid grid-cols-2 gap-4 border-t border-white/20 pt-4">
+                <div>
+                  <dt className="text-xs text-white/80 flex items-center gap-1.5">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    Sentimiento predominante
+                  </dt>
+                  <dd className="text-lg font-semibold capitalize mt-1">{dashboardStats.sentimientoPredominante}</dd>
+                  <dd className="text-xs text-white/80">Score medio: {dashboardStats.avgSentiment}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-white/80 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Relevancia media
+                  </dt>
+                  <dd className="text-lg font-semibold mt-1 tabular-nums">
+                    {dashboardStats.avgRelevance}
+                    <span className="text-sm font-normal text-white/80"> / 100</span>
+                  </dd>
+                  <dd className="text-xs text-white/80">Potencial editorial</dd>
+                </div>
+              </dl>
+            </section>
 
-            {/* KPI 2 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between">
-              <div>
-                <span className="text-xs font-semibold text-slate-500 block">Tasa de Aprobación</span>
-                <span className="text-2xl font-black text-emerald-600 mt-1 block">
-                  {dashboardStats.tasaAprobacion}%
-                </span>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">
-                  {dashboardStats.totalAprobados} de {dashboardStats.totalCandidatos} activos
-                </span>
-              </div>
-              <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-            </div>
+            <ChartCard
+              className="lg:col-span-4"
+              title="Estado de los activos"
+              subtitle="Revisión de los contenidos generados"
+              badge={`${dashboardStats.totalCandidatos} activos`}
+            >
+              <RingChart
+                center={`${dashboardStats.tasaAprobacion}%`}
+                caption="aprobados"
+                segments={[
+                  { label: "Aprobados", value: dashboardStats.totalAprobados, color: "green" },
+                  { label: "Rechazados", value: dashboardStats.totalRechazados, color: "red" },
+                ]}
+              />
+            </ChartCard>
 
-            {/* KPI 3 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between">
-              <div>
-                <span className="text-xs font-semibold text-slate-500 block">Sentimiento Predominante</span>
-                <span className="text-lg font-bold capitalize text-slate-900 mt-1 block flex items-center gap-1.5">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full ${
-                      dashboardStats.sentimientoPredominante.includes("pos")
-                        ? "bg-emerald-500"
-                        : dashboardStats.sentimientoPredominante.includes("neg")
-                        ? "bg-rose-500"
-                        : "bg-amber-400"
-                    }`}
-                  />
-                  {dashboardStats.sentimientoPredominante}
-                </span>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">
-                  Score medio: <strong>{dashboardStats.avgSentiment}</strong>
-                </span>
-              </div>
-              <div className="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-            </div>
-
-            {/* KPI 4 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex items-center justify-between">
-              <div>
-                <span className="text-xs font-semibold text-slate-500 block">Relevancia Media</span>
-                <span className="text-2xl font-black text-indigo-700 mt-1 block">
-                  {dashboardStats.avgRelevance} <span className="text-xs font-medium text-slate-400">/ 100</span>
-                </span>
-                <span className="text-[11px] text-slate-400 mt-0.5 block">
-                  Potencial editorial de contenido
-                </span>
-              </div>
-              <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <Sparkles className="w-5 h-5" />
-              </div>
-            </div>
+            <ChartCard className="lg:col-span-4" title="Activos por canal" subtitle="Estado por formato editorial">
+              <StackedColumns
+                columns={(
+                  [
+                    ["LinkedIn", dashboardStats.channelStats.post_linkedin],
+                    ["Newsletter", dashboardStats.channelStats.destaque_newsletter_semanal],
+                    ["FAQ", dashboardStats.channelStats.sugerencia_contenido_faq],
+                  ] as const
+                ).map(([label, st]) => ({
+                  label,
+                  segments: [
+                    { label: "Aprobados", value: st.aprobados, color: "green" as const },
+                    { label: "Rechazados", value: st.rechazados, color: "red" as const },
+                  ],
+                }))}
+                legend={[
+                  { label: "Aprobados", color: "green" },
+                  { label: "Rechazados", color: "red" },
+                ]}
+              />
+            </ChartCard>
           </div>
 
-          {/* GRÁFICAS VISUALES INTERACTIVAS (GRID 2x2) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Gráfica 1: Distribución de Sentimiento */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">Distribución de Sentimiento</h4>
-                  <p className="text-xs text-slate-500">Tono emocional de las consultas de la comunidad</p>
-                </div>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                  {dashboardStats.totalCasos} casos
-                </span>
-              </div>
+          {/* Distribuciones */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <ChartCard
+              title="Distribución de sentimiento"
+              subtitle="Tono emocional de las consultas de la comunidad"
+              badge={`${dashboardStats.totalCasos} casos`}
+            >
+              <BarList
+                total={dashboardStats.totalCasos}
+                items={[
+                  { label: "Positivo", value: dashboardStats.sentimientoCounts.positivo, color: "green" },
+                  { label: "Neutral", value: dashboardStats.sentimientoCounts.neutral, color: "yellow" },
+                  { label: "Negativo", value: dashboardStats.sentimientoCounts.negativo, color: "red" },
+                ]}
+              />
+            </ChartCard>
 
-              <div className="space-y-3 pt-1">
-                {[
+            <ChartCard
+              title="Niveles de relevancia"
+              subtitle="Valor editorial de las interacciones"
+              badge={`Score medio: ${dashboardStats.avgRelevance}/100`}
+            >
+              <BarList
+                total={dashboardStats.totalCasos}
+                items={[
                   {
-                    key: "positivo",
-                    label: "Positivo",
-                    count: dashboardStats.sentimientoCounts.positivo,
-                    color: "bg-emerald-500",
+                    label: "Alta (70 - 100)",
+                    hint: "Casos con alto valor para publicación",
+                    value: dashboardStats.relevanceBuckets.alta,
+                    color: "violet",
                   },
                   {
-                    key: "neutral",
-                    label: "Neutral",
-                    count: dashboardStats.sentimientoCounts.neutral,
-                    color: "bg-amber-400",
+                    label: "Media (40 - 69)",
+                    hint: "Casos para boletines o resúmenes",
+                    value: dashboardStats.relevanceBuckets.media,
+                    color: "blue",
                   },
                   {
-                    key: "negativo",
-                    label: "Negativo",
-                    count: dashboardStats.sentimientoCounts.negativo,
-                    color: "bg-rose-500",
+                    label: "Baja (0 - 39)",
+                    hint: "Soporte rápido o interacciones menores",
+                    value: dashboardStats.relevanceBuckets.baja,
+                    color: "orange",
                   },
-                ].map((item) => {
-                  const pct =
-                    dashboardStats.totalCasos > 0
-                      ? Math.round((item.count / dashboardStats.totalCasos) * 100)
-                      : 0;
-                  return (
-                    <div key={item.key} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-semibold">
-                        <span className="flex items-center gap-1.5 text-slate-700">
-                          <span className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
-                          {item.label}
-                        </span>
-                        <span className="text-slate-500 font-mono">
-                          {item.count} ({pct}%)
-                        </span>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${item.color} transition-all duration-500 rounded-full`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                ]}
+              />
+            </ChartCard>
+          </div>
 
-            {/* Gráfica 2: Activos por Canal y Aprobación */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">Activos Generados por Canal</h4>
-                  <p className="text-xs text-slate-500">Distribución y estado por formato editorial</p>
-                </div>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                  {dashboardStats.totalCandidatos} activos
-                </span>
-              </div>
-
-              <div className="space-y-3 pt-1">
-                {[
-                  {
-                    key: "post_linkedin",
-                    label: "LinkedIn Posts",
-                    stats: dashboardStats.channelStats.post_linkedin,
-                  },
-                  {
-                    key: "destaque_newsletter_semanal",
-                    label: "Newsletter Destacados",
-                    stats: dashboardStats.channelStats.destaque_newsletter_semanal,
-                  },
-                  {
-                    key: "sugerencia_contenido_faq",
-                    label: "FAQ & Mentoring",
-                    stats: dashboardStats.channelStats.sugerencia_contenido_faq,
-                  },
-                ].map((ch) => {
-                  const total = ch.stats.total;
-                  const aprobPct = total > 0 ? Math.round((ch.stats.aprobados / total) * 100) : 0;
-                  const rechPct = total > 0 ? Math.round((ch.stats.rechazados / total) * 100) : 0;
-                  return (
-                    <div key={ch.key} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-semibold">
-                        <span className="text-slate-800">{ch.label}</span>
-                        <div className="flex items-center gap-2 text-[11px]">
-                          <span className="text-emerald-700 font-medium">{ch.stats.aprobados} aprob.</span>
-                          <span className="text-slate-300">·</span>
-                          <span className="text-rose-700 font-medium">{ch.stats.rechazados} rech.</span>
-                          <span className="text-slate-400">({total} total)</span>
-                        </div>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                        <div
-                          className="bg-emerald-500 h-full transition-all duration-500"
-                          style={{ width: `${aprobPct}%` }}
-                          title={`${ch.stats.aprobados} aprobados`}
-                        />
-                        <div
-                          className="bg-rose-500 h-full transition-all duration-500"
-                          style={{ width: `${rechPct}%` }}
-                          title={`${ch.stats.rechazados} rechazados`}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Gráfica 3: Temas y Conceptos de la Comunidad (Nube Interactiva que reemplaza a Top Temas) */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-indigo-600" />
-                    Temas y Conceptos de la Comunidad
-                  </h4>
-                  <p className="text-xs text-slate-500">Términos con mayor frecuencia en las consultas</p>
-                </div>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
-                  {wordCloudData.list.length} temas
-                </span>
-              </div>
-
+          <ChartCard
+            title="Temas y conceptos de la comunidad"
+            subtitle="Términos con mayor frecuencia en las consultas"
+            badge={`${wordCloudData.list.length} temas`}
+          >
               {wordCloudData.list.length === 0 ? (
-                <p className="text-xs text-slate-400 italic py-6 text-center">
-                  No hay temas registrados en el período actual.
-                </p>
-              ) : (
-                <div className="space-y-3 pt-1">
-                  <div className="flex flex-wrap items-center justify-center gap-2 p-3 bg-slate-50/70 rounded-xl border border-slate-100 min-h-[160px]">
-                    {wordCloudData.list.map(([term, freq]) => {
-                      const ratio = wordCloudData.maxWeight > 1 ? freq / wordCloudData.maxWeight : 1;
-                      const isSelected = selectedCloudWord === term;
-                      let badgeStyle = "text-xs font-medium text-slate-700 bg-white border-slate-200 hover:border-slate-300";
-                      if (ratio >= 0.75) {
-                        badgeStyle = "text-sm sm:text-base font-bold text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100 shadow-2xs";
-                      } else if (ratio >= 0.45) {
-                        badgeStyle = "text-xs sm:text-sm font-semibold text-purple-700 bg-purple-50 border-purple-200 hover:bg-purple-100";
-                      } else if (ratio >= 0.25) {
-                        badgeStyle = "text-xs font-medium text-sky-700 bg-sky-50 border-sky-200 hover:bg-sky-100";
-                      }
+              <p className="text-xs text-ink-500 italic py-6 text-center">
+                No hay temas registrados en el período actual.
+              </p>
+            ) : (
+              <div className="space-y-3 pt-1">
+                <div className="flex flex-wrap items-center justify-center gap-2 p-3 bg-ink-50/70 rounded-xl border border-ink-100 min-h-[160px]">
+                  {wordCloudData.list.map(([term, freq]) => {
+                    const ratio = wordCloudData.maxWeight > 1 ? freq / wordCloudData.maxWeight : 1;
+                    const isSelected = selectedCloudWord === term;
+                    let badgeStyle = "text-xs font-medium text-ink-700 bg-white border-ink-200 hover:border-ink-300";
+                    if (ratio >= 0.75) {
+                      badgeStyle = "text-sm sm:text-base font-bold text-brand-700 bg-brand-50 border-brand-200 hover:bg-brand-100 shadow-2xs";
+                    } else if (ratio >= 0.45) {
+                      badgeStyle = "text-xs sm:text-sm font-semibold text-brand-700 bg-brand-50 border-brand-200 hover:bg-brand-100";
+                    } else if (ratio >= 0.25) {
+                      badgeStyle = "text-xs font-medium text-info-700 bg-info-50 border-info-200 hover:bg-info-100";
+                    }
 
-                      return (
-                        <button
-                          key={term}
-                          onClick={() => setSelectedCloudWord(isSelected ? null : term)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-150 cursor-pointer ${
-                            isSelected
-                              ? "ring-2 ring-indigo-500 bg-indigo-600 text-white border-indigo-600 shadow-sm scale-105"
-                              : badgeStyle
-                          }`}
-                          title={`#${term}: ${freq} mención(es)`}
-                        >
-                          <span>#{term}</span>
-                          <span className={`text-[10px] font-mono ${isSelected ? "text-indigo-100" : "opacity-60"}`}>
-                            ({freq})
-                          </span>
-                        </button>
-                      );
-                    })}
+                    return (
+                      <button
+                        key={term}
+                        onClick={() => setSelectedCloudWord(isSelected ? null : term)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all duration-150 cursor-pointer ${
+                          isSelected
+                            ? "ring-2 ring-brand-500 bg-brand-600 text-white border-brand-600 shadow-sm scale-105"
+                            : badgeStyle
+                        }`}
+                        title={`#${term}: ${freq} mención(es)`}
+                      >
+                        <span>#{term}</span>
+                        <span className={`text-[10px] font-mono ${isSelected ? "text-brand-100" : "opacity-60"}`}>
+                          ({freq})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Detalle interactivo del tema seleccionado sin salir del dashboard */}
+                {selectedCloudWord && (
+                  <div className="p-2.5 rounded-lg bg-brand-50/80 border border-brand-100 flex items-center justify-between text-xs text-brand-900 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                      <span>
+                        <strong>#{selectedCloudWord}</strong> tiene{" "}
+                        <strong>
+                          {wordCloudData.list.find(([t]) => t === selectedCloudWord)?.[1] || 1}
+                        </strong>{" "}
+                        menciones en este período.
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSearchQuery(selectedCloudWord);
+                          setActiveView("tabla");
+                        }}
+                        className="text-[11px] font-bold text-brand-700 hover:text-brand-900 underline cursor-pointer"
+                      >
+                        Ver en tabla →
+                      </button>
+                      <button
+                        onClick={() => setSelectedCloudWord(null)}
+                        className="text-ink-500 hover:text-ink-600 p-0.5 cursor-pointer"
+                        title="Cerrar detalle"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </ChartCard>
+        </div>
+      )}
+
+      {/* 4. PANEL DE DETALLE (mismo componente que la bandeja de revisión) */}
+      {inspectCase && (
+        <DetailPanel
+          icon={<Eye className="w-5 h-5" />}
+          autor={inspectCase.interaccion.autor}
+          canal={inspectCase.interaccion.canal}
+          subtitle={inspectCase.paqueteFecha ? `Fecha de registro: ${inspectCase.paqueteFecha}` : "Interacción de la comunidad"}
+          onRequestClose={() => setInspectCase(null)}
+          headerActions={
+            <div className="flex items-center gap-1 bg-ink-200/70 p-1 rounded-lg" role="tablist">
+              {(
+                [
+                  ["detalle", "Detalle", null],
+                  ["json", "Ver JSON", <FileCode key="i" className="w-3.5 h-3.5" />],
+                ] as const
+              ).map(([key, label, icon]) => (
+                <button
+                  key={key}
+                  role="tab"
+                  aria-selected={inspectTab === key}
+                  onClick={() => setInspectTab(key)}
+                  className={`text-xs px-3 py-1 rounded-md font-semibold transition cursor-pointer flex items-center gap-1 ${
+                    inspectTab === key ? "bg-white text-brand-700 shadow-2xs" : "text-ink-600 hover:text-ink-900"
+                  }`}
+                >
+                  {icon}
+                  {label}
+                </button>
+              ))}
+            </div>
+          }
+          footer={
+            <>
+              <span className="text-xs text-ink-500">Registro consolidado · Modo solo lectura</span>
+              <button onClick={() => setInspectCase(null)} className="btn-ghost ml-auto">
+                Cerrar
+              </button>
+            </>
+          }
+        >
+          {inspectTab === "detalle" ? (
+            <DetailColumns
+              left={
+                <InteractionSummary
+                  texto={inspectCase.interaccion.texto}
+                  tipoNote={`Tipo declarado: ${inspectCase.interaccion.tipo || "consulta"}`}
+                  fecha={inspectCase.paqueteFecha}
+                  alerts={inspectCase.degradado ? ["Análisis degradado: la IA no respondió y se usó un resultado neutral."] : []}
+                  analisis={inspectCase.analisis}
+                  categoria={
+                    CATEGORY_LABELS[inspectCase.oportunidad?.categoria as keyof typeof CATEGORY_LABELS] ||
+                    inspectCase.oportunidad?.categoria ||
+                    "Sin categoría"
+                  }
+                  relevancia={`${inspectCase.oportunidad?.relevance_score ?? 0} / 100`}
+                  motivo={inspectCase.enrutamiento?.motivo}
+                />
+              }
+              right={
+                <div className="space-y-3">
+                  <PanelTitle>Contenido generado</PanelTitle>
+                  <ChannelTabs
+                    tabs={(inspectCase.activos_candidatos || []).map((cand) => ({
+                      id: cand.tipo_activo,
+                      label:
+                        cand.tipo_activo === "post_linkedin"
+                          ? "LinkedIn"
+                          : cand.tipo_activo === "destaque_newsletter_semanal"
+                          ? "Newsletter"
+                          : "FAQ",
+                      estado: cand.estado_aprobacion,
+                    }))}
+                    activeId={inspectActiveChannel}
+                    onSelect={setInspectActiveChannel}
+                  />
+
+            {/* Contenido del canal activo */}
+            {(() => {
+              const currentCand =
+                (inspectCase.activos_candidatos || []).find(
+                  (c) => c.tipo_activo === inspectActiveChannel
+                ) || (inspectCase.activos_candidatos || [])[0];
+
+              if (!currentCand) {
+                return (
+                  <div className="p-8 text-center text-ink-500 text-xs italic">
+                    No se generó contenido para este canal en este caso.
+                  </div>
+                );
+              }
+
+              const tipo = currentCand.tipo_activo;
+              const content = currentCand.contenido;
+              const estado = currentCand.estado_aprobacion;
+
+              return (
+                <div className="space-y-4 pt-1">
+                  {/* Estado del activo */}
+                  <div className="flex items-center justify-between pb-1">
+                    <span className="text-xs text-ink-500 font-medium">Estado del activo:</span>
+                    <EstadoPill estado={estado} />
                   </div>
 
-                  {/* Detalle interactivo del tema seleccionado sin salir del dashboard */}
-                  {selectedCloudWord && (
-                    <div className="p-2.5 rounded-lg bg-indigo-50/80 border border-indigo-100 flex items-center justify-between text-xs text-indigo-900 animate-in fade-in duration-150">
-                      <div className="flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                        <span>
-                          <strong>#{selectedCloudWord}</strong> tiene{" "}
-                          <strong>
-                            {wordCloudData.list.find(([t]) => t === selectedCloudWord)?.[1] || 1}
-                          </strong>{" "}
-                          menciones en este período.
-                        </span>
+                  {/* Formatos específicos */}
+                  {tipo === "post_linkedin" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-xs text-ink-500 border-b border-ink-100 pb-2">
+                        <span>Canal: <strong>{content.canal_recomendado || "LinkedIn Oficial"}</strong></span>
+                        {content.potencial_engagement && (
+                          <span>Engagement: <strong className="text-brand-600">{content.potencial_engagement}</strong></span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-ink-500 block mb-1">
+                          Título
+                        </label>
+                        <div className="text-xs font-bold text-ink-900 bg-ink-50 p-2.5 rounded-lg border border-ink-200">
+                          {content.titulo}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-ink-500 block mb-1">
+                          Copy
+                        </label>
+                        <div className="p-3.5 bg-ink-50 border border-ink-200 rounded-lg text-xs text-ink-800 leading-relaxed whitespace-pre-wrap font-sans">
+                          {content.copy}
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-2">
                         <button
-                          onClick={() => {
-                            setSearchQuery(selectedCloudWord);
-                            setActiveView("tabla");
-                          }}
-                          className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 underline cursor-pointer"
+                          onClick={() => copyModalContent(`${content.titulo ? content.titulo + "\n\n" : ""}${content.copy || ""}`)}
+                          className="btn-primary"
                         >
-                          Ver en tabla →
+                          {copiedModalText ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          {copiedModalText ? "¡Copiado!" : "Copiar contenido"}
                         </button>
                         <button
-                          onClick={() => setSelectedCloudWord(null)}
-                          className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                          title="Cerrar detalle"
+                          onClick={async () => {
+                            const text = `${content.titulo ? content.titulo + "\n\n" : ""}${content.copy || ""}`;
+                            await copyToClipboard(text);
+                            window.open(
+                              `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`,
+                              "_blank",
+                              "noopener,noreferrer"
+                            );
+                          }}
+                          className="btn-soft"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <Send className="w-4 h-4" />
+                          Publicar en LinkedIn
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {tipo === "destaque_newsletter_semanal" && (
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-xs font-bold text-brand-800 bg-brand-50 border border-brand-200 px-2.5 py-0.5 rounded-full">
+                          Sección: {content.seccion || "Historia de la Semana"}
+                        </span>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-ink-500 block mb-1">
+                          Titular
+                        </label>
+                        <div className="text-xs font-bold text-ink-900 bg-ink-50 p-2.5 rounded-lg border border-ink-200">
+                          {content.titular}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-ink-500 block mb-1">
+                          Resumen
+                        </label>
+                        <div className="p-3.5 bg-ink-50 border border-ink-200 rounded-lg text-xs text-ink-800 leading-relaxed whitespace-pre-wrap font-sans">
+                          {content.resumen}
+                        </div>
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <button
+                          onClick={() => copyModalContent(`${content.titular}\n\n${content.resumen}`)}
+                          className="btn-primary"
+                        >
+                          {copiedModalText ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          {copiedModalText ? "¡Copiado!" : "Copiar contenido"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {tipo === "sugerencia_contenido_faq" && (
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-ink-500 block mb-1">
+                          Tema / Pregunta
+                        </label>
+                        <div className="text-xs font-bold text-ink-900 bg-ink-50 p-2.5 rounded-lg border border-ink-200">
+                          {content.tema}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-ink-500 block mb-1">
+                          Origen / Contexto
+                        </label>
+                        <div className="p-3.5 bg-ink-50 border border-ink-200 rounded-lg text-xs text-ink-800 leading-relaxed whitespace-pre-wrap font-sans">
+                          {content.origen}
+                        </div>
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <button
+                          onClick={() => copyModalContent(`${content.tema}\n\n${content.origen}`)}
+                          className="btn-primary"
+                        >
+                          {copiedModalText ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                          {copiedModalText ? "¡Copiado!" : "Copiar contenido"}
                         </button>
                       </div>
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-
-            {/* Gráfica 4: Niveles de Relevancia Editorial */}
-            <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900">Niveles de Relevancia</h4>
-                  <p className="text-xs text-slate-500">Clasificación de valor editorial de las interacciones</p>
+              );
+            })()}
                 </div>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">
-                  Score medio: {dashboardStats.avgRelevance}/100
-                </span>
-              </div>
-
-              <div className="space-y-3 pt-1">
-                {[
-                  {
-                    label: "Alta Relevancia (70 - 100)",
-                    desc: "Casos con alto valor para publicación",
-                    count: dashboardStats.relevanceBuckets.alta,
-                    color: "bg-indigo-600",
-                  },
-                  {
-                    label: "Media Relevancia (40 - 69)",
-                    desc: "Casos para boletines o resúmenes",
-                    count: dashboardStats.relevanceBuckets.media,
-                    color: "bg-amber-500",
-                  },
-                  {
-                    label: "Baja Relevancia (0 - 39)",
-                    desc: "Soporte rápido o interacciones menores",
-                    count: dashboardStats.relevanceBuckets.baja,
-                    color: "bg-slate-400",
-                  },
-                ].map((b) => {
-                  const pct =
-                    dashboardStats.totalCasos > 0
-                      ? Math.round((b.count / dashboardStats.totalCasos) * 100)
-                      : 0;
-                  return (
-                    <div key={b.label} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs font-semibold">
-                        <div>
-                          <span className="text-slate-800 block">{b.label}</span>
-                          <span className="text-[11px] text-slate-400 font-normal">{b.desc}</span>
-                        </div>
-                        <span className="text-slate-700 font-mono">
-                          {b.count} ({pct}%)
-                        </span>
-                      </div>
-                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${b.color} transition-all duration-500 rounded-full`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. MODAL DE INSPECCIÓN DETALLADA: "VER ACTIVO" */}
-      {inspectCase && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-[2px] flex items-center justify-center p-4 overflow-y-auto"
-          onClick={() => setInspectCase(null)}
-        >
-          <div
-            className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200 border border-slate-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header del modal */}
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
-              <div className="flex items-center gap-3">
-                <span className="p-2 rounded-xl bg-indigo-50 text-indigo-700">
-                  <Eye className="w-5 h-5" />
-                </span>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    <span>{inspectCase.interaccion.autor}</span>
-                    <span className="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-mono font-normal">
-                      {inspectCase.interaccion.canal}
-                    </span>
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    {inspectCase.paqueteFecha ? `Fecha de registro: ${inspectCase.paqueteFecha}` : "Interacción de la comunidad"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Botones de navegación y cierre */}
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1 bg-slate-200/70 p-1 rounded-lg">
+              }
+            />
+          ) : (
+              /* VISTA: JSON DEL CASO */
+              <div className="p-6 space-y-3">
+                <div className="flex items-center justify-between text-xs text-ink-500">
+                  <span>Estructura JSON completa del caso persistido:</span>
                   <button
-                    onClick={() => setInspectTab("detalle")}
-                    className={`text-xs px-3 py-1 rounded-md font-semibold transition cursor-pointer ${
-                      inspectTab === "detalle"
-                        ? "bg-white text-indigo-700 shadow-2xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
+                    onClick={copyCaseJsonContent}
+                    className="inline-flex items-center gap-1 text-[11px] text-brand-600 hover:text-brand-800 font-semibold cursor-pointer"
                   >
-                    Detalle Activo
-                  </button>
-                  <button
-                    onClick={() => setInspectTab("json")}
-                    className={`text-xs px-3 py-1 rounded-md font-semibold transition cursor-pointer flex items-center gap-1 ${
-                      inspectTab === "json"
-                        ? "bg-white text-indigo-700 shadow-2xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <FileCode className="w-3.5 h-3.5" />
-                    Ver JSON
+                    {copiedCaseJson ? <Check className="w-3.5 h-3.5 text-success-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedCaseJson ? "¡Copiado!" : "Copiar JSON"}
                   </button>
                 </div>
-
-                <button
-                  onClick={() => setInspectCase(null)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer ml-1"
-                  title="Cerrar ventana"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <pre className="p-4 bg-ink-900 text-ink-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[480px] leading-relaxed">
+                  {JSON.stringify(inspectCase, null, 2)}
+                </pre>
               </div>
-            </div>
-
-            {/* Contenido principal del modal */}
-            <div className="flex-1 overflow-y-auto">
-              {inspectTab === "detalle" ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
-                  {/* COLUMNA IZQUIERDA: Interacción Original y Análisis IA */}
-                  <div className="p-6 space-y-5 bg-slate-50/40 overflow-y-auto">
-                    {/* Interacción Original */}
-                    <div className="space-y-2">
-                      <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        Interacción original
-                      </h5>
-                      <div className="p-3.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 leading-relaxed font-sans shadow-2xs whitespace-pre-wrap">
-                        {inspectCase.interaccion.texto}
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-0.5">
-                        <span>Tipo declarado: {inspectCase.interaccion.tipo || "consulta"}</span>
-                        <span>{inspectCase.paqueteFecha}</span>
-                      </div>
-                    </div>
-
-                    {/* Análisis IA */}
-                    <div className="space-y-3 pt-1 border-t border-slate-200">
-                      <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        Análisis IA
-                      </h5>
-
-                      {/* Sentimiento */}
-                      <div>
-                        <span className="text-xs text-slate-500 block mb-1 font-medium">Sentimiento</span>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-                              (inspectCase.analisis?.sentimiento || "").includes("pos")
-                                ? "bg-emerald-100 text-emerald-800"
-                                : (inspectCase.analisis?.sentimiento || "").includes("neg")
-                                ? "bg-rose-100 text-rose-800"
-                                : "bg-slate-100 text-slate-700"
-                            }`}
-                          >
-                            {inspectCase.analisis?.sentimiento || "neutral"}
-                          </span>
-                          <span className="text-xs text-slate-500 font-mono">
-                            ({typeof inspectCase.analisis?.sentimiento_score === "number"
-                              ? inspectCase.analisis.sentimiento_score >= 0
-                                ? `+${inspectCase.analisis.sentimiento_score.toFixed(2)}`
-                                : inspectCase.analisis.sentimiento_score.toFixed(2)
-                              : "0.00"})
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Temas */}
-                      <div>
-                        <span className="text-xs text-slate-500 block mb-1 font-medium">Temas</span>
-                        <div className="flex flex-wrap gap-1">
-                          {(inspectCase.analisis?.temas || []).length > 0 ? (
-                            inspectCase.analisis?.temas.map((tema, i) => (
-                              <span
-                                key={i}
-                                className="text-[11px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-medium"
-                              >
-                                #{tema}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-slate-400 italic">Sin temas identificados</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Entidades */}
-                      <div>
-                        <span className="text-xs text-slate-500 block mb-1 font-medium">Entidades</span>
-                        <div className="flex flex-wrap gap-1">
-                          {(inspectCase.analisis?.entidades || []).length > 0 ? (
-                            inspectCase.analisis?.entidades.map((ent, i) => (
-                              <span
-                                key={i}
-                                className="text-[11px] px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-700 font-medium"
-                              >
-                                {ent}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-slate-400 italic">Sin entidades</span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Resumen */}
-                      {inspectCase.analisis?.resumen && (
-                        <div>
-                          <span className="text-xs text-slate-500 block mb-1 font-medium">Resumen</span>
-                          <p className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed">
-                            {inspectCase.analisis.resumen}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Clasificación */}
-                    <div className="space-y-3 pt-1 border-t border-slate-200">
-                      <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                        Clasificación
-                      </h5>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <span className="text-xs text-slate-500 block mb-1 font-medium">Categoría</span>
-                          <span className="text-xs font-bold text-slate-800 bg-white px-2.5 py-1 rounded-lg border border-slate-200 block truncate">
-                            {CATEGORY_LABELS[inspectCase.oportunidad?.categoria as keyof typeof CATEGORY_LABELS] ||
-                              inspectCase.oportunidad?.categoria ||
-                              "Sin categoría"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-xs text-slate-500 block mb-1 font-medium">Relevancia</span>
-                          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 block">
-                            {inspectCase.oportunidad?.relevance_score ?? 0} / 100
-                          </span>
-                        </div>
-                      </div>
-
-                      {inspectCase.enrutamiento?.motivo && (
-                        <div>
-                          <span className="text-xs text-slate-500 block mb-1 font-medium">Motivo</span>
-                          <p className="text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed">
-                            {inspectCase.enrutamiento.motivo}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* COLUMNA DERECHA: Contenido Generado por Canales (Read-Only) */}
-                  <div className="p-6 space-y-5 overflow-y-auto">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h5 className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          Contenido generado
-                        </h5>
-                      </div>
-
-                      {/* Selector de canales (LinkedIn / Newsletter / FAQ) */}
-                      <div className="flex items-center gap-1.5 border-b border-slate-200 pb-3">
-                        {(inspectCase.activos_candidatos || []).map((cand) => {
-                          const isSel = inspectActiveChannel === cand.tipo_activo;
-                          const channelName =
-                            cand.tipo_activo === "post_linkedin"
-                              ? "LinkedIn"
-                              : cand.tipo_activo === "destaque_newsletter_semanal"
-                              ? "Newsletter"
-                              : "FAQ";
-                          return (
-                            <button
-                              key={cand.candidato_id}
-                              onClick={() => setInspectActiveChannel(cand.tipo_activo)}
-                              className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer flex items-center gap-2 ${
-                                isSel
-                                  ? "bg-indigo-600 text-white shadow-xs"
-                                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                              }`}
-                            >
-                              <span>{channelName}</span>
-                              <span
-                                className={`w-2 h-2 rounded-full ${
-                                  cand.estado_aprobacion === "aprobado"
-                                    ? "bg-emerald-400"
-                                    : cand.estado_aprobacion === "rechazado"
-                                    ? "bg-rose-400"
-                                    : "bg-amber-300 animate-pulse"
-                                }`}
-                              />
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Contenido del canal activo */}
-                      {(() => {
-                        const currentCand =
-                          (inspectCase.activos_candidatos || []).find(
-                            (c) => c.tipo_activo === inspectActiveChannel
-                          ) || (inspectCase.activos_candidatos || [])[0];
-
-                        if (!currentCand) {
-                          return (
-                            <div className="p-8 text-center text-slate-400 text-xs italic">
-                              No se generó contenido para este canal en este caso.
-                            </div>
-                          );
-                        }
-
-                        const tipo = currentCand.tipo_activo;
-                        const content = currentCand.contenido;
-                        const estado = currentCand.estado_aprobacion;
-
-                        return (
-                          <div className="space-y-4 pt-1">
-                            {/* Estado del activo */}
-                            <div className="flex items-center justify-between pb-1">
-                              <span className="text-xs text-slate-500 font-medium">Estado del activo:</span>
-                              <span
-                                className={`text-xs font-bold px-2.5 py-0.5 rounded-full capitalize ${
-                                  estado === "aprobado"
-                                    ? "bg-emerald-100 text-emerald-800"
-                                    : estado === "rechazado"
-                                    ? "bg-rose-100 text-rose-800"
-                                    : "bg-amber-100 text-amber-800"
-                                }`}
-                              >
-                                {estado}
-                              </span>
-                            </div>
-
-                            {/* Formatos específicos */}
-                            {tipo === "post_linkedin" && (
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between text-xs text-slate-500 border-b border-slate-100 pb-2">
-                                  <span>Canal: <strong>{content.canal_recomendado || "LinkedIn Oficial"}</strong></span>
-                                  {content.potencial_engagement && (
-                                    <span>Engagement: <strong className="text-indigo-600">{content.potencial_engagement}</strong></span>
-                                  )}
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                                    Título
-                                  </label>
-                                  <div className="text-xs font-bold text-slate-900 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                                    {content.titulo}
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                                    Copy
-                                  </label>
-                                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
-                                    {content.copy}
-                                  </div>
-                                </div>
-                                <div className="flex justify-end gap-2 pt-2">
-                                  <button
-                                    onClick={() => copyModalContent(`${content.titulo ? content.titulo + "\n\n" : ""}${content.copy || ""}`)}
-                                    className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 font-semibold transition cursor-pointer shadow-2xs"
-                                  >
-                                    {copiedModalText ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5 text-white" />}
-                                    {copiedModalText ? "¡Copiado!" : "Copiar contenido"}
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      const text = `${content.titulo ? content.titulo + "\n\n" : ""}${content.copy || ""}`;
-                                      await copyToClipboard(text);
-                                      window.open(
-                                        `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`,
-                                        "_blank",
-                                        "noopener,noreferrer"
-                                      );
-                                    }}
-                                    className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-sky-700 text-white hover:bg-sky-600 font-semibold transition cursor-pointer shadow-2xs"
-                                  >
-                                    <Send className="w-3.5 h-3.5 text-white" />
-                                    Publicar en LinkedIn
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {tipo === "destaque_newsletter_semanal" && (
-                              <div className="space-y-3">
-                                <div>
-                                  <span className="text-xs font-bold text-purple-800 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full">
-                                    Sección: {content.seccion || "Historia de la Semana"}
-                                  </span>
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                                    Titular
-                                  </label>
-                                  <div className="text-xs font-bold text-slate-900 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                                    {content.titular}
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                                    Resumen
-                                  </label>
-                                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
-                                    {content.resumen}
-                                  </div>
-                                </div>
-                                <div className="flex justify-end pt-2">
-                                  <button
-                                    onClick={() => copyModalContent(`${content.titular}\n\n${content.resumen}`)}
-                                    className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 font-semibold transition cursor-pointer shadow-2xs"
-                                  >
-                                    {copiedModalText ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5 text-white" />}
-                                    {copiedModalText ? "¡Copiado!" : "Copiar contenido"}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {tipo === "sugerencia_contenido_faq" && (
-                              <div className="space-y-3">
-                                <div>
-                                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                                    Tema / Pregunta
-                                  </label>
-                                  <div className="text-xs font-bold text-slate-900 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                                    {content.tema}
-                                  </div>
-                                </div>
-                                <div>
-                                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                                    Origen / Contexto
-                                  </label>
-                                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 leading-relaxed whitespace-pre-wrap font-sans">
-                                    {content.origen}
-                                  </div>
-                                </div>
-                                <div className="flex justify-end pt-2">
-                                  <button
-                                    onClick={() => copyModalContent(`${content.tema}\n\n${content.origen}`)}
-                                    className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 font-semibold transition cursor-pointer shadow-2xs"
-                                  >
-                                    {copiedModalText ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5 text-white" />}
-                                    {copiedModalText ? "¡Copiado!" : "Copiar contenido"}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* VISTA: JSON DEL CASO */
-                <div className="p-6 space-y-3">
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>Estructura JSON completa del caso persistido:</span>
-                    <button
-                      onClick={copyCaseJsonContent}
-                      className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
-                    >
-                      {copiedCaseJson ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      {copiedCaseJson ? "¡Copiado!" : "Copiar JSON"}
-                    </button>
-                  </div>
-                  <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[480px] leading-relaxed">
-                    {JSON.stringify(inspectCase, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-
-            {/* Footer del modal: estrictamente de lectura */}
-            <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-              <span className="text-xs text-slate-400">
-                Registro consolidado · Modo solo lectura
-              </span>
-              <button
-                onClick={() => setInspectCase(null)}
-                className="text-xs px-4 py-2 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800 transition cursor-pointer"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
+          )}
+        </DetailPanel>
       )}
     </div>
   );

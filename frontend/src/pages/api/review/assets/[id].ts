@@ -1,14 +1,10 @@
-import { NextResponse } from "next/server";
+import type { APIRoute } from "astro";
+import { backendUrl, errorMessage, json } from "@/lib/bff";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
-
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PATCH: APIRoute = async ({ params, request }) => {
   try {
-    const { id } = await params;
-    const body = await req.json();
+    const id = params.id ?? "";
+    const body = await request.json();
 
     // Si el ID es un candidato simulado / de prueba local (no proviene de la BD de FastAPI)
     const isSimulatedId =
@@ -21,7 +17,7 @@ export async function PATCH(
       !/^cand_[0-9a-f]{32}$/i.test(id);
 
     if (isSimulatedId) {
-      return NextResponse.json({
+      return json({
         source: "simulation",
         status: body.estado_aprobacion || "aprobado",
         candidato_id: id,
@@ -30,7 +26,7 @@ export async function PATCH(
     }
 
     try {
-      const response = await fetch(`${BACKEND_URL}/api/v1/review/assets/${id}`, {
+      const response = await fetch(`${backendUrl()}/api/v1/review/assets/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -39,23 +35,20 @@ export async function PATCH(
 
       if (response.ok) {
         const data = await response.json();
-        return NextResponse.json({ source: "fastapi", data });
+        return json({ source: "fastapi", data });
       }
     } catch (fastApiErr) {
       console.warn("FastAPI review endpoint no alcanzable, confirmando en modo local:", fastApiErr);
     }
 
     // Fallback si backend está offline o no lo encontró
-    return NextResponse.json({
+    return json({
       source: "simulation",
       status: body.estado_aprobacion || "aprobado",
       candidato_id: id,
       message: `Candidato ${id} aprobado localmente`,
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: "Error en actualización de activo", detail: error.message },
-      { status: 500 }
-    );
+  } catch (error) {
+    return json({ error: "Error en actualización de activo", detail: errorMessage(error) }, 500);
   }
-}
+};

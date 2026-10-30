@@ -1,20 +1,19 @@
-import { NextResponse } from "next/server";
-import { SolicitudProcesamiento, TrabajoPipeline } from "@/types/backend";
+import type { APIRoute } from "astro";
+import type { SolicitudProcesamiento, TrabajoPipeline } from "@/types/backend";
 import { generateSimulatedPipeline } from "@/lib/simulation";
-
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+import { backendUrl, errorMessage, json } from "@/lib/bff";
 
 // Crea un trabajo en el backend; responde de inmediato y el avance se consulta en /api/pipeline/jobs/[id].
-export async function POST(req: Request) {
+export const POST: APIRoute = async ({ request }) => {
   let body: SolicitudProcesamiento;
   try {
-    body = await req.json();
-  } catch (error: any) {
-    return NextResponse.json({ error: "JSON inválido", detail: error.message }, { status: 400 });
+    body = await request.json();
+  } catch (error) {
+    return json({ error: "JSON inválido", detail: errorMessage(error) }, 400);
   }
 
   try {
-    const response = await fetch(`${BACKEND_URL}/api/v1/pipeline/jobs`, {
+    const response = await fetch(`${backendUrl()}/api/v1/pipeline/jobs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -23,18 +22,15 @@ export async function POST(req: Request) {
     });
     const data = await response.json().catch(() => null);
     if (response.ok) {
-      return NextResponse.json({ source: "fastapi", data });
+      return json({ source: "fastapi", data });
     }
     // Un lote rechazado por el backend (p. ej. 422) no se simula: se informa el error.
     if (response.status < 500) {
-      return NextResponse.json(
-        { error: "El backend rechazó el lote", detail: data?.detail ?? data },
-        { status: response.status }
-      );
+      return json({ error: "El backend rechazó el lote", detail: data?.detail ?? data }, response.status);
     }
     console.warn(`FastAPI respondió ${response.status} al crear el trabajo, usando simulación`);
-  } catch (error: any) {
-    console.warn("FastAPI no alcanzable al crear el trabajo, usando simulación:", error.message);
+  } catch (error) {
+    console.warn("FastAPI no alcanzable al crear el trabajo, usando simulación:", errorMessage(error));
   }
 
   // Modo demostración: el trabajo simulado se entrega ya completado.
@@ -49,5 +45,5 @@ export async function POST(req: Request) {
     desde: 0,
     interacciones_procesadas: simulated.interacciones_procesadas,
   };
-  return NextResponse.json({ source: "simulation", data: job });
-}
+  return json({ source: "simulation", data: job });
+};
