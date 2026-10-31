@@ -1,4 +1,4 @@
-# Arquitectura de CommunityLab
+# Arquitectura de Community IA
 
 ## Enfoque
 
@@ -13,7 +13,7 @@ flowchart LR
 	D --> F[Dashboard / consumo]
 ```
 
-El diagrama representa el objetivo del proyecto. Las fases A, B y C ya están conectadas en un único flujo (`POST /api/v1/pipeline/process`); solo el paso D (empaquetado final + persistencia OCI) sigue sin implementar — la función que lo hace existe (`armar_respuesta_externa`) pero no está expuesta por ningún endpoint todavía.
+Las fases A, B y C están conectadas en un único flujo (`POST /api/v1/pipeline/jobs`, o `/process` en modo síncrono) que guarda cada lote en `app.db`. El equipo revisa los candidatos y un admin publica el lote revisado en OCI con `POST /api/v1/storage/publish` (paso D).
 
 ## Módulos y propiedad funcional
 
@@ -26,13 +26,13 @@ El diagrama representa el objetivo del proyecto. Las fases A, B y C ya están co
 | `backend/app/intelligence` | Clasificación, scoring y adaptación al LLM de clasificación. | Implementado y conectado al pipeline. |
 | `backend/app/workflow` | Orquestación de clasificación, reintentos, fallback, enrutamiento y llamada a Equipo C. | Grafo de clasificación implementado y conectado vía `app/workflow/pipeline.py::process_batch`. |
 | `backend/app/content` | Prompts de generación, selección de formato por categoría y persistencia de candidatos. | Implementado; conectado al pipeline cuando la ruta es `equipo_c.generar_activos`. |
-| Revisión HITL | Listado y aprobación/edición de activos candidatos. | Implementado sobre almacenamiento JSON local (`backend/data/activos_candidatos.json`), vía `/api/v1/review`. |
-| Storage OCI / empaquetado final / RAG | Persistencia definitiva, ensamblado del contrato externo final y recuperación opcional para FAQ. | Definido como objetivo; `armar_respuesta_externa` existe pero no está conectado a un endpoint ni a OCI. |
+| Revisión HITL | Listado y aprobación/edición de activos candidatos. | Implementado en SQLite (`backend/data/app.db`) vía `/api/v1/review`: revisión en equipo, cada decisión firmada por quien la tomó, historial por activo y conflicto 409 si dos personas cambian lo mismo. |
+| Storage OCI / empaquetado final / RAG | Persistencia definitiva, ensamblado del contrato externo final y recuperación opcional para FAQ. | Empaquetado y OCI implementados (`app/storage/service.py::publicar_lote`, solo admin, con bloque `auditoria`); RAG sigue pendiente. |
 | `frontend` | Dashboard y panel HITL. | Panel HITL implementado en Next.js (bandeja de revisión con procesamiento fila por fila vía `/api/v1/pipeline/jobs`); el dashboard de métricas sigue pendiente. Ver [frontend/README.md](../frontend/README.md). |
 
 ## Flujo implementado
 
-`backend/app/main.py` crea la aplicación, expone `GET /health` y registra tres routers: ingesta (`/api/v1/ingest`), pipeline completo (`/api/v1/pipeline`) y revisión HITL (`/api/v1/review`).
+`backend/app/main.py` crea la aplicación (`create_app()`), expone `GET /health` y monta `app/api/v1/router.py`, que registra en un solo sitio cada router con su prefijo y su rol mínimo: autenticación (`/api/v1/auth`), usuarios (`/api/v1/usuarios`), ingesta (`/api/v1/ingest`), pipeline completo (`/api/v1/pipeline`), revisión HITL (`/api/v1/review`) y almacenamiento (`/api/v1/storage`).
 
 `POST /api/v1/pipeline/process` → `process_batch` (`app/workflow/pipeline.py`) orquesta, por cada interacción del lote:
 

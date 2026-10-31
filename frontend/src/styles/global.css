@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Modo oscuro por atributo (lo fija el script de BaseLayout), no por media query: así el
+   botón de tema puede imponerse a la preferencia del sistema. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+ * Punto de entrada de estilos. Cada archivo tiene una responsabilidad:
+ *   tokens.css      paleta, tipografía, degradados y sombras (@theme de Tailwind)
+ *   theme-dark.css  valores de los tokens en modo oscuro
+ *   base.css        estilos de elementos HTML
+ *   components.css  clases reutilizables (botones, tablas, tarjetas, campos, botón de tema)
+ *   effects.css     marca y fondos decorativos (logo en máscara, rayos de luz)
+ *   spotlight.css   tarjetas spotlight de la portada, el login y la bandeja
+ * Un componente nuevo debería usar tokens y utilidades; solo se añade una clase aquí si se repite.
+ */
+@import "./tokens.css";
+@import "./theme-dark.css";
+@import "./base.css";
+@import "./components.css";
+@import "./effects.css";
+@import "./spotlight.css";

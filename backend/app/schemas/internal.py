@@ -3,6 +3,7 @@
 from app.contracts.enums import EstadoTrabajo
 from app.contracts.models import (
     ActivoCandidato,
+    Autoria,
     AnalisisInterno,
     EnrutamientoInterno,
     InteraccionInterna,
@@ -49,6 +50,25 @@ class TrabajoPipeline(BaseModel):
     desde: int = 0
     interacciones_procesadas: list[ResultadoPipelineItem] = Field(default_factory=list)
     error: str | None = None
+    # Lotes del equipo: quién subió el lote y, si ya se guardó en la nube, quién lo publicó.
+    creado_por: Autoria | None = None
+    publicado_por: Autoria | None = None
+
+
+class ResumenLote(BaseModel):
+    """Fila del listado de lotes del equipo (sin las interacciones)."""
+
+    job_id: str
+    estado: EstadoTrabajo
+    origen_comunidad: str
+    periodo_referencia: str
+    total: int
+    procesadas: int
+    creado_por: Autoria
+    publicado_por: Autoria | None = None
+    activos_pendientes: int = 0
+    activos_aprobados: int = 0
+    activos_rechazados: int = 0
 
 
 __all__ = [
@@ -59,4 +79,5 @@ __all__ = [
     "ResultadoPipelineItem",
     "ResultadoPipeline",
     "TrabajoPipeline",
+    "ResumenLote",
 ]

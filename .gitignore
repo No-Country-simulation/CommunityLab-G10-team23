@@ -39,6 +39,8 @@ node_modules/
 frontend/node_modules/
 .next/
 frontend/.next/
+.astro/
+frontend/.astro/
 out/
 *.tsbuildinfo
 *.pem

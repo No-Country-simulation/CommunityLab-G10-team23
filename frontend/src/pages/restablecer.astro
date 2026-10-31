@@ -1,0 +1,43 @@
+---
+import AuthLayout from "@/layouts/AuthLayout.astro";
+---
+
+<AuthLayout
+  title="Nueva contraseña"
+  heading="Elige una contraseña nueva"
+  intro="Al guardarla se cerrarán las sesiones que tengas abiertas en otros equipos."
+>
+  <meta name="referrer" content="no-referrer" slot="head" />
+  <form id="restablecer-form" class="flex flex-col gap-5" novalidate>
+    <p data-alert class="auth-alert" role="alert" hidden></p>
+
+    <div class="auth-field">
+      <label for="password">Contraseña nueva</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required autofocus aria-describedby="password-hint" />
+      <span id="password-hint" class="hint">Al menos 12 caracteres.</span>
+    </div>
+    <div class="auth-field">
+      <label for="confirmar">Repite la contraseña</label>
+      <input id="confirmar" name="confirmar" type="password" autocomplete="new-password" required />
+    </div>
+
+    <button type="submit" class="btn-primary w-full py-3" data-busy="Guardando…">Guardar contraseña</button>
+  </form>
+</AuthLayout>
+
+<script>
+  import { bindAuthForm, checkNewPassword, showAlert, takeToken } from "@/lib/client/authForm";
+
+  const form = document.querySelector<HTMLFormElement>("#restablecer-form")!;
+  const token = takeToken();
+  if (!token) {
+    showAlert(form, "Este enlace no es válido. Pide a quien administra Community IA un enlace de recuperación nuevo.");
+    form.querySelector<HTMLButtonElement>("button[type=submit]")!.disabled = true;
+  }
+
+  bindAuthForm(form, {
+    endpoint: "/api/auth/restablecer",
+    build: (data) => checkNewPassword(data) ?? { token: token ?? "", password: String(data.get("password")) },
+    onSuccess: () => window.location.assign("/login?motivo=restablecida"),
+  });
+</script>

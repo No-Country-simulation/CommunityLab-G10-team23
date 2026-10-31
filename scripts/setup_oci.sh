@@ -1,23 +1,37 @@
 #!/usr/bin/env bash
-set -e
+# Instala las credenciales de OCI en la VM del backend a partir de archivos locales.
+#
+# Uso (en la VM, después de copiar los archivos con scp):
+#   bash scripts/setup_oci.sh <ruta/oci_api_key.pem> <ruta/config>
+#
+# La clave privada y el archivo config NUNCA se versionan en el repositorio.
+# Si usas instance principals (docs/Guia_Despliegue_OCI.md, paso 1, opción B)
+# no necesitas este script.
+set -euo pipefail
+
+if [ "$#" -ne 2 ]; then
+  echo "Uso: $0 <oci_api_key.pem> <config>" >&2
+  exit 1
+fi
+
+KEY_SRC="$1"
+CONFIG_SRC="$2"
+OCI_DIR="$HOME/.oci"
+
+for f in "$KEY_SRC" "$CONFIG_SRC"; do
+  [ -f "$f" ] || { echo "No existe el archivo: $f" >&2; exit 1; }
+done
 
 echo "=== Configurando credenciales de OCI Object Storage ==="
-mkdir -p ~/.oci
+mkdir -p "$OCI_DIR"
+chmod 700 "$OCI_DIR"
 
-cat << 'EOF' | base64 -d > ~/.oci/oci_api_key.pem
-LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUV2Z0lCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQktnd2dnU2tBZ0VBQW9JQkFRQ3d3V2dJVi9lR1VUWi8KT3dmL3cxRE1Wa1lpbllabHU2S09lVTRFYzh6UjFTcTRTaHJ3QkZIQTRISERKV3l4MUEzT3FVZENmcVhxU1NnNQpNY2tsbFRsTEptWGFRcS9nU0Z0cWJaalVpRDN2b3hxeUFuT1BIeWNuYkRSN1JrQk84ZEt2Z28xbVk0TFlsUGdkCkcyc3pONDdxb2ZlZHFTTHF0Y0JLSERjUG56UVFkMmxJNG9WL0FSOFZ1QnBpZkFBTkhaczdPTkRRY1poZEdqNWgKOW9WTXZWb3czTzV2TlUybUthb3IvQnVJeU9qOHR0S0NnRU9HYVVOS2hWQjg4bTJIMnFFaXNMeGVtRVZuckVhWQp6MlprZ0lMZDljS295dk45Z1V2QkFRYkRlZC8xODJBN1V3MnROcnZBeE81QjRDK0s0V3ZmSzMvd0tla0h2b3JwCnl6Z1loLy9oQWdNQkFBRUNnZ0VBQXRTNXJYekljamRndGpwbUtCNGZFQ05EZXI1amRMT2I3S0NQNzd1QnNzU0oKYTJmRk1UMzk5OWNHYm16ZC9oWUVpYmhaaTd5dzNFa0xQTW1Gd0dGQXdISEpOc1Q3dVhXNk9Gamdsa3FYZEp3agovMGp4bEMrNFpDbllHRGQ3akNJa2xON2NSRGtVdTJLZEs5VHNuMWFZN254TkxhSmI1TGJJRVczTTBsWlRSbjVXCnpna1lkemVmQkdYVk5LL0tabFVkVjdwMnlhdW5vQVgzN1VWWjBydlNiRStDQjdONXR1SWlXaDNERnlQYVRQcEUKY0VFcGtPa1BrTi9ZT2tvZENLYWV2c0tHRFQ2NFFzWlhjbFU0Z3VUemEvbEdSK3IzR1VLTmc1NGxHcGJvUllZeAoyVmxRZ0RGemkvZ1hzVHkwT2c0aDFnNk5xY2V2ME0yVTZYNVhEY2VHd1FLQmdRRFZ1eVNhNjkvMGc1dkJpRmI1Cjh6bGRSd3B1cSs3WU1Tamt6SXYrN2tPZlVZRGt4aXB6UXN1VE9tTUFnNW5ZN1MxTUNTRVQvOHIwSkFTVjdaQi8KcVZtV3dITkRoYkZGVDNzZGQxVWQyek1obS9FSWhxeEo1MFdZYlg2V1FpWEcxVUh4V3ZUYVFRQ0dyRUVXVENieAp3K3crRWMxUDdlNTBLNXdpUEN5VkJxNWJ3UUtCZ1FEVHRrQjFNZnl2amU2K3Q0ZElWVExzRlZuL1hYY2QzNGx2ClN0cjlBQ2Rzdi9YWlRkT1FiTTg0UWVUSVpXZUpuclRmelFZdDVtUG5TTm9pa2ExaE82UFFBbGRleXRQbVBHWmQKc3lGWThxdjBhdk9kbHVQdk56ZHpETjFoQjVZOXhnY2ZYNFF6VUd1SHRaMmVUbXI4Q0JDYTE5L2VKZlB4YmNxNQpVNFpmcW9rc0lRS0JnUUN6RkpzWE00dnkxRk10VlkrSzNzQ3g1MVJXWnJrNWEvZFh2Z3VQRHhTWjZUQ1dmM1FTCkgyVnpkdmg4OWNkeWUwZjQ3YTFKbEluNUJqVFJhcndvT3oxVmt1c0JLSVBnRHppWTkrUFpvRkMzV0hJZE1yb3AKTWg2ZUdTQjN4ZlRoSk02YjdCbzh4VG9yblNqc0JlS2JzQTNCOUNpVFVFajhEWTVGSVNZNXQ5OWdBUUtCZ1FEUQoyWXFPMGtnT3V2cFpZOTF0eXJhWVZKdmFvYzVmUnVSaVNMcnRPSmlyM0ZaZ0R6bDAwUkkrMGlvcVVuYW9PVXIvCk9GY3ZNb2M5WXczbGFrWmFsQ1lPampDNGoyZ29TVTlHZ2U2VXU1aE1YckdDdFphWHBxWHB0amd4ZnZXRWJQVWIKeXZNMFY5SXNKMHFkSDRqRXBnUVRiSUFvdXRJQ1NpZmhXUGRIS29sMVlRS0JnSHJsSWk1WmIzNnZZWjhsVzNnbAp3SmZITkFRWlJOeDRDT290QXhobUVMTG5yaXhLeU0yWVFFN0NoREVoa1ZyaEh3ajBHNHdDdmdNWHFYK0xlc3BVCmVQK0pTTGdwcWNjUHhpeTMvK0MvNllsQ1JlcjZnSytVb1BVeEloL1lrMlgxSVVqVkp2aTc5bnJ1OG5ZaGt2b1gKREJ6N2QxVEJoSzF5eVYvalh4VHBIL3huCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0K
-EOF
-chmod 600 ~/.oci/oci_api_key.pem
+install -m 600 "$KEY_SRC" "$OCI_DIR/oci_api_key.pem"
+install -m 600 "$CONFIG_SRC" "$OCI_DIR/config"
 
-cat << 'EOF' > ~/.oci/config
-[DEFAULT]
-user=ocid1.user.oc1..aaaaaaaan6m4paugkmfjtngzl54kzopi2ckczv67crs7ockn7qg54a2ehi2q
-fingerprint=32:d5:c4:ca:1b:c8:74:c4:7e:0a:4d:ea:08:47:63:be
-tenancy=ocid1.tenancy.oc1..aaaaaaaaodjocls2ulpqufhbtpdnpxzn3wefspaccpaknsen4epwzaxm5cfa
-region=sa-vinhedo-1
-key_file=/home/opc/.oci/oci_api_key.pem
-EOF
-chmod 600 ~/.oci/config
+# key_file debe apuntar a la ruta dentro de la VM (el contenedor monta la misma ruta).
+sed -i "s|^key_file=.*|key_file=$OCI_DIR/oci_api_key.pem|" "$OCI_DIR/config"
 
-echo "=== Credenciales de OCI configuradas exitosamente ==="
-ls -la ~/.oci
+echo "=== Credenciales de OCI configuradas ==="
+ls -la "$OCI_DIR"
+echo "Borra las copias temporales de la clave que hayas subido: rm -f \"$KEY_SRC\""

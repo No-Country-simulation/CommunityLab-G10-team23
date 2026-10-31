@@ -1,0 +1,30 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ReviewApp from "@/features/review/ReviewApp";
+import Landing from "@/features/landing/Landing.astro";
+
+// Con sesión (o en modo demostración), "/" es la aplicación; sin sesión, la portada pública.
+const usuario = Astro.locals.user;
+---
+
+{
+  usuario ? (
+    <BaseLayout>
+      {/*
+        Una sola isla: la cabecera, la bandeja y el historial comparten el estado del lote
+        (avance, revisión, guardado en OCI). Se renderiza en el servidor y se hidrata al cargar.
+      */}
+      <ReviewApp client:load usuario={usuario} />
+      <noscript>
+        <p class="p-6 text-sm">Community IA necesita JavaScript para cargar y revisar lotes.</p>
+      </noscript>
+    </BaseLayout>
+  ) : (
+    <BaseLayout
+      title="Community IA: revisión humana del contenido que prepara la IA"
+      description="Community IA analiza las conversaciones de tu comunidad y prepara borradores para LinkedIn, el newsletter y las preguntas frecuentes. Tu equipo los revisa y decide qué se publica."
+    >
+      <Landing />
+    </BaseLayout>
+  )
+}

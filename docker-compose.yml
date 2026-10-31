@@ -1,20 +1,67 @@
+# Configuración de producción (instancias de OCI). Guía: docs/Guia_Despliegue_OCI.md
+#
+# - Backend:  docker compose up -d --build backend
+# - Frontend: docker compose up -d --build frontend   (con BACKEND_URL en .env)
+# - Desarrollo local con recarga automática:
+#     docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+# Endurecimiento común: sin escalada de privilegios, sin capacidades de Linux
+# y logs rotados para no llenar el disco de la VM.
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   backend:
+    <<: *hardening
     build: ./backend
     ports:
       - "8000:8000"
+    # GEMINI_API_KEY, GEMINI_MODEL y, opcionalmente, OCI_BUCKET_NAME / OCI_NAMESPACE / OCI_REGION.
     env_file:
-      - .env
+      - path: .env
+        required: false
     volumes:
-      - ./backend:/app
-      - /home/opc/.oci:/root/.oci:ro
-      - /home/opc/.oci:/home/opc/.oci:ro
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      # Candidatos en revisión y almacenamiento local de respaldo: sobreviven a reconstrucciones.
+      - backend-data:/app/data
+      # Credenciales de OCI en solo lectura (no hacen falta si se usan instance principals).
+      # El contenedor corre como UID 1000 (opc) y las busca en /home/opc/.oci/config.
+      - ${OCI_CONFIG_DIR:-/home/opc/.oci}:/home/opc/.oci:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   frontend:
+    <<: *hardening
     build: ./frontend
     ports:
       - "3000:3000"
     environment:
-      - BACKEND_URL=http://backend:8000
+      # En la VM del frontend se define en .env (IP privada del backend). Por defecto,
+      # el backend del mismo compose.
+      - BACKEND_URL=${BACKEND_URL:-http://backend:8000}
+      # Detrás de un proxy HTTPS: cookie Secure e IP real del cliente (ver frontend/README.md).
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      - TRUST_PROXY=${TRUST_PROXY:-false}
+      # Solo para mostrar la interfaz sin backend: desactiva el inicio de sesión y simula los datos.
+      - DEMO_MODE=${DEMO_MODE:-false}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  backend-data:

@@ -14,7 +14,7 @@ _ANALYSIS_PROMPT = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            """Eres el analista de CommunityLab. Analiza una sola interacción de una
+            """Eres el analista de Community IA. Analiza una sola interacción de una
 comunidad de aprendizaje y responde exclusivamente con el esquema estructurado indicado.
 
 Extrae:

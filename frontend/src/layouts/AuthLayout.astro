@@ -1,0 +1,138 @@
+---
+/*
+ * Pantallas de acceso (login, registro, contraseña nueva) con el lenguaje de la portada [ref Dong]:
+ * fondo lavanda con rayos de luz, titular grande y el formulario dentro de una
+ * tarjeta spotlight (sin elevación, para que no se mueva mientras se escribe). Mismo pie que la portada.
+ */
+import { ArrowLeft } from "lucide-react";
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import ThemeToggle from "@/components/ui/ThemeToggle.astro";
+import GodRay from "@/components/ui/GodRay.astro";
+import LandingFooter from "@/features/landing/LandingFooter.astro";
+import SpotlightCard from "@/components/ui/SpotlightCard.astro";
+import SpotlightGallery from "@/components/ui/SpotlightGallery.astro";
+
+interface Props {
+  title: string;
+  heading: string;
+  intro?: string;
+}
+
+const { title, heading, intro } = Astro.props;
+---
+
+<BaseLayout title={`${title} | Community IA`}>
+  <slot name="head" slot="head" />
+  <div class="auth-page relative isolate min-h-dvh flex flex-col bg-landing-bg text-landing-ink">
+    <GodRay origin="top-right" intensity={0.3} />
+
+    <header class="mx-auto w-full max-w-6xl px-5 md:px-6 h-20 flex items-center justify-between gap-4">
+      <a href="/" class="inline-flex items-center gap-2.5 font-bold text-lg">
+        <span class="brand-mark w-9 h-9" aria-hidden="true"></span>
+        Community IA
+      </a>
+      <div class="flex items-center gap-1">
+        <a href="/" class="back-link">
+          <ArrowLeft className="w-4 h-4" aria-hidden="true" /> <span class="hidden sm:inline">Volver al inicio</span><span class="sm:hidden">Inicio</span>
+        </a>
+        <ThemeToggle />
+      </div>
+    </header>
+
+    <main class="flex-1 px-4 pt-6 pb-16 md:pt-12 md:pb-24">
+      <div class="mx-auto w-full max-w-[440px] flex flex-col gap-8">
+        <div class="flex flex-col gap-4 sm:items-center sm:text-center">
+          <h1 class="text-[2.125rem] leading-[1.15] md:text-5xl font-bold tracking-tight">{heading}</h1>
+          {intro && <p class="text-base md:text-lg leading-relaxed opacity-80 max-w-[42ch]">{intro}</p>}
+        </div>
+
+        <SpotlightGallery columns={1}>
+          <SpotlightCard tone="#a68bf9" lift={false}>
+            <slot />
+          </SpotlightCard>
+        </SpotlightGallery>
+      </div>
+    </main>
+
+    <LandingFooter pillSpace={false} />
+  </div>
+</BaseLayout>
+
+<style is:global>
+  html:has(.auth-page) {
+    background-color: var(--color-landing-bg);
+  }
+  /* Enlaces con el color del texto; en @layer base para que .btn-primary siga ganando. */
+  @layer base {
+    .auth-page a {
+      color: inherit;
+    }
+  }
+  .auth-page ::selection {
+    background-color: var(--color-brand-500);
+    color: var(--color-white);
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 9999px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    opacity: 0.6;
+    transition: opacity 150ms;
+  }
+  .back-link:hover,
+  .back-link:focus-visible {
+    opacity: 1;
+  }
+
+  .auth-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+  .auth-field label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-landing-ink);
+  }
+  /* Campos [ref]: el buscador del hero de Dong (píldora con borde primary/60, fondo primary/10 al enfocar). */
+  .auth-field input {
+    width: 100%;
+    border: 1px solid rgb(139 96 255 / 0.6);
+    border-radius: 9999px;
+    background-color: color-mix(in srgb, var(--color-surface) 70%, transparent);
+    padding: 0.75rem 1.25rem;
+    font-size: 1rem;
+    color: var(--color-landing-ink);
+    transition: background-color 150ms;
+  }
+  .auth-field input:focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 1px;
+    background-color: rgb(139 96 255 / 0.1);
+  }
+  .auth-field .hint {
+    font-size: 0.75rem;
+    color: var(--color-landing-ink);
+    opacity: 0.7;
+    padding-inline: 1.25rem;
+  }
+  .auth-alert {
+    border-radius: 10px;
+    padding: 0.75rem 0.875rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+  }
+  .auth-alert[data-tone="error"] {
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+  }
+  .auth-alert[data-tone="info"] {
+    background: var(--color-info-50);
+    color: var(--color-info-700);
+  }
+</style>

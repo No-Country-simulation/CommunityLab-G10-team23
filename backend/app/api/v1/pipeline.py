@@ -1,25 +1,35 @@
 """Endpoints that orchestrate Team A analysis, Team B classification and Team C generation."""
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from app.contracts.models import SolicitudProcesamiento
-from app.schemas.internal import ResultadoPipeline, TrabajoPipeline
-from app.workflow.jobs import get_job, start_job
-from app.workflow.pipeline import process_batch
+from app.auth.dependencies import autor_actual, requiere_admin
+from app.contracts.models import Autoria, SolicitudProcesamiento
+from app.schemas.internal import ResultadoPipeline, ResumenLote, TrabajoPipeline
+from app.workflow.jobs import delete_job, get_job, list_jobs, process_now, start_job
+from app.workflow.repository import LoteNoEliminable
 
 
 router = APIRouter()
 
 
 @router.post("/process", response_model=ResultadoPipeline)
-def process_pipeline(request: SolicitudProcesamiento) -> ResultadoPipeline:
-    return process_batch(request)
+def process_pipeline(request: SolicitudProcesamiento, autor: Autoria = Depends(autor_actual)) -> ResultadoPipeline:
+    """Procesa el lote de forma síncrona y lo deja en la bandeja del equipo como un lote más."""
+    return process_now(request, autor)
 
 
 @router.post("/jobs", response_model=TrabajoPipeline, status_code=202)
-def create_pipeline_job(request: SolicitudProcesamiento) -> TrabajoPipeline:
+def create_pipeline_job(request: SolicitudProcesamiento, autor: Autoria = Depends(autor_actual)) -> TrabajoPipeline:
     """Encola el lote y responde de inmediato; el avance se consulta con GET /jobs/{job_id}."""
-    return start_job(request)
+    return start_job(request, autor)
+
+
+@router.get("/jobs", response_model=list[ResumenLote])
+def list_pipeline_jobs(
+    sin_publicar: bool = Query(False, description="Solo los lotes que todavía no se guardaron en la nube"),
+) -> list[ResumenLote]:
+    """Lotes del equipo, del más reciente al más antiguo. Cualquier revisor puede abrirlos y revisarlos."""
+    return list_jobs(sin_publicar=sin_publicar)
 
 
 @router.get("/jobs/{job_id}", response_model=TrabajoPipeline)
@@ -31,4 +41,23 @@ def read_pipeline_job(job_id: str, desde: int = Query(0, ge=0)) -> TrabajoPipeli
     return job
 
 
-__all__ = ["router", "process_pipeline", "create_pipeline_job", "read_pipeline_job"]
+@router.delete("/jobs/{job_id}", status_code=204, dependencies=[Depends(requiere_admin)])
+def delete_pipeline_job(job_id: str) -> Response:
+    """Elimina un lote sin publicar con todo su contenido e historial de revisión (solo admin)."""
+    try:
+        eliminado = delete_job(job_id)
+    except LoteNoEliminable as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if not eliminado:
+        raise HTTPException(status_code=404, detail=f"No existe el trabajo {job_id}")
+    return Response(status_code=204)
+
+
+__all__ = [
+    "router",
+    "process_pipeline",
+    "create_pipeline_job",
+    "list_pipeline_jobs",
+    "read_pipeline_job",
+    "delete_pipeline_job",
+]

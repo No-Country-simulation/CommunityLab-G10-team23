@@ -1,6 +1,6 @@
-# Community Lab — Front-End
+# Community IA — Front-End
 
-Interfaz web para la **revisión humana (HITL)** del contenido que genera el pipeline de CommunityLab, desarrollada con **Next.js 15**, **React 19**, **TypeScript** y **Tailwind CSS**.
+Interfaz web para la **revisión humana (HITL)** del contenido que genera el pipeline de Community IA, desarrollada con **Astro 7** (servidor Node), **React 19** para la parte interactiva, **TypeScript** y **Tailwind CSS 4**. La migración desde Next.js está documentada en [`docs/MIGRACION_ASTRO.md`](docs/MIGRACION_ASTRO.md).
 
 Se conecta al backend en **FastAPI**, que analiza, clasifica y redacta con **Google Gemini** (orquestado con LangGraph) las conversaciones de comunidades de aprendizaje, y propone publicaciones para **LinkedIn**, **Newsletter** y **Contenido FAQ** que una persona revisa antes de publicar.
 
@@ -8,7 +8,7 @@ Se conecta al backend en **FastAPI**, que analiza, clasifica y redacta con **Goo
 
 ## 📋 Tabla de Contenidos
 
-- [Community Lab — Front-End](#community-lab--front-end)
+- [Community IA — Front-End](#community-ia--front-end)
   - [📋 Tabla de Contenidos](#-tabla-de-contenidos)
   - [⚙️ Requisitos Previos](#️-requisitos-previos)
   - [🚀 Puesta en Marcha](#-puesta-en-marcha)
@@ -30,7 +30,7 @@ Se conecta al backend en **FastAPI**, que analiza, clasifica y redacta con **Goo
 - Archivo `.env` en la raíz del repositorio, basado en [`.env.example`](../.env.example), con:
   - `GEMINI_API_KEY`: tu llave de Google AI Studio.
   - `GEMINI_MODEL`: se recomienda `gemini-3.5-flash-lite` (ver [cuotas de Gemini](#cuota-de-gemini-agotada-error-429)).
-- **Node.js** v18.18+ o v20+, solo si vas a ejecutar el frontend fuera de Docker.
+- **Node.js** v22.23+ (requisito de Astro 7), solo si vas a ejecutar el frontend fuera de Docker.
 
 ---
 
@@ -47,7 +47,13 @@ docker compose up --build
 - Frontend: **http://localhost:3000**
 - Backend: **http://localhost:8000** (documentación interactiva en `/docs`)
 
-En la cabecera verás **● Conectado** si el frontend llega al backend, o **Modo demostración** si no (ver [Resiliencia](#-arquitectura-de-comunicación-bff)).
+La aplicación exige iniciar sesión. La primera vez, crea el administrador (pide la contraseña sin mostrarla) y entra en http://localhost:3000/login:
+
+```bash
+docker compose exec -it backend python -m app.auth.crear_admin --email <tu-correo> --nombre "<tu nombre>"
+```
+
+Las demás cuentas se crean por invitación desde **Administración → Equipo** (no hay registro abierto). Cada rol ve solo sus vistas: *Solo lectura* entra directo a la tabla de casos y al dashboard; *Revisión* además usa la bandeja; *Administración* además gestiona el equipo. En la barra lateral verás **Conectado** si el frontend llega al backend, **Sin conexión** si no, o **Modo demostración** con `DEMO_MODE=true` (ver [Sesión y modo demostración](#-arquitectura-de-comunicación-bff)).
 
 Comandos útiles:
 
@@ -71,6 +77,13 @@ npm run dev
 ```
 
 Abre **http://localhost:3000**. El proxy apunta a `http://localhost:8000` salvo que definas `BACKEND_URL`.
+
+| Script | Qué hace |
+| :--- | :--- |
+| `npm run dev` | Servidor de desarrollo en :3000 |
+| `npm run build` | Compila a `dist/` (servidor en `dist/server/entry.mjs`) |
+| `npm start` | Ejecuta la compilación; acepta `HOST`, `PORT` y `BACKEND_URL` |
+| `npm run check` | Comprobación de tipos de `.astro`, `.ts` y `.tsx` (`astro check`) |
 
 ---
 
@@ -122,40 +135,93 @@ El backend redacta el copy de LinkedIn como un post (gancho, párrafos cortos, l
 ## 🧩 Estructura del Proyecto
 
 ```
-frontend/src/
-├── app/
-│   ├── api/
-│   │   ├── health/route.ts              # Chequeo de salud del backend (GET /health)
-│   │   ├── pipeline/jobs/route.ts       # Proxy BFF hacia POST /api/v1/pipeline/jobs (con simulador)
-│   │   ├── pipeline/jobs/[id]/route.ts  # Proxy BFF hacia GET /api/v1/pipeline/jobs/{id}?desde=n
-│   │   └── review/assets/[id]/route.ts  # Proxy BFF hacia PATCH /api/v1/review/assets/{id}
-│   ├── layout.tsx                       # Layout raíz
-│   └── page.tsx                         # Estado de la página: carga del lote, avance, pestañas, filtros y revisión
-├── components/
-│   ├── Header.tsx                       # Cabecera: lote actual y avance, cargar JSON, reprocesar, datos de prueba, estado del backend
-│   ├── ReviewTable.tsx                  # Tabla de datos con menú ⋮ por fila
-│   └── InteractionDetailModal.tsx       # Ventana de detalle con editor por formato y acciones HITL
-├── lib/
-│   ├── review.ts                        # Pestañas, etiquetas, campos por formato y armado de filas
-│   ├── samples.ts                       # Lotes de demostración
-│   └── simulation.ts                    # Resultado simulado para el modo demostración
-└── types/
-    └── backend.ts                       # Tipos TypeScript de los contratos del backend
+frontend/
+├── astro.config.mjs                     # Salida server + adaptador Node standalone, React y Tailwind (Vite)
+└── src/
+    ├── middleware.ts                    # Exige sesión en páginas y /api/*, CSRF y cabeceras de seguridad
+    ├── pages/
+    │   ├── index.astro                  # Sin sesión: portada pública; con sesión: la isla <ReviewApp client:load usuario={…} />
+    │   ├── login.astro                  # Inicio de sesión
+    │   ├── registro.astro               # Crear cuenta con el enlace de invitación (?token=)
+    │   ├── restablecer.astro            # Contraseña nueva con el enlace de recuperación (?token=)
+    │   └── api/                         # BFF (endpoints de servidor de Astro)
+    │       ├── auth/                    # login, logout, registro, restablecer y me (cookie httpOnly)
+    │       ├── usuarios/[...path].ts    # Equipo e invitaciones (solo administración) → /api/v1/usuarios
+    │       ├── health.ts                # GET /health (público)
+    │       ├── pipeline/jobs/index.ts   # POST /api/v1/pipeline/jobs (con simulador)
+    │       ├── pipeline/jobs/[id].ts    # GET /api/v1/pipeline/jobs/{id}?desde=n
+    │       ├── review/assets/[id].ts    # PATCH /api/v1/review/assets/{id}
+    │       └── storage/                 # packages, packages/[...slug] y publish (OCI vía backend)
+    ├── layouts/
+    │   ├── BaseLayout.astro             # <html>, <head>, fuentes, estilos y script de tema (claro/oscuro)
+    │   └── AuthLayout.astro             # Marco de las pantallas de acceso
+    ├── features/                        # Una carpeta por funcionalidad; dentro, sus componentes y su lógica
+    │   ├── review/                      # Bandeja de revisión
+    │   │   ├── ReviewApp.tsx            # Isla principal: barra lateral, carga del lote, avance, revisión y vistas
+    │   │   ├── ReviewTable.tsx          # Tabla de datos con menú ⋮ por fila
+    │   │   ├── InteractionDetailModal.tsx  # Detalle con editor por formato y acciones HITL
+    │   │   ├── review.ts                # Pestañas, etiquetas, campos por formato y armado de filas
+    │   │   └── batch.ts                 # Lectura y validación del JSON que sube el usuario
+    │   ├── history/                     # Historial (se carga al abrir la vista)
+    │   │   ├── HistoryView.tsx          # Carga de paquetes, filtros compartidos y tabla de casos
+    │   │   ├── DashboardView.tsx        # Dashboard de comunidad
+    │   │   ├── DashboardCharts.tsx      # Gráficos (anillo, columnas, barras)
+    │   │   ├── CaseDetailModal.tsx      # Detalle de un caso guardado y su JSON
+    │   │   └── model.ts                 # Tipos de paquetes, fechas y cálculo de métricas (sin React)
+    │   ├── team/                        # Equipo (solo administración)
+    │   │   ├── TeamView.tsx             # Personas e invitaciones
+    │   │   ├── TeamCards.tsx            # Tarjetas de persona e invitación
+    │   │   ├── TeamDialogs.tsx          # Invitar y enlace de un solo uso
+    │   │   └── utils.ts                 # Llamadas a /api/usuarios y formato
+    │   └── landing/                     # Portada pública (navegación, hero, producto, cierre, pie)
+    ├── components/                      # Piezas compartidas entre funcionalidades
+    │   ├── layout/Sidebar.tsx           # Navegación lateral de la app
+    │   ├── shared/                      # Piezas de dominio usadas por bandeja e historial (DetailPanel, StatusCards)
+    │   └── ui/                          # Primitivas sin dominio: AlertDialog, PageHeader, LoadingState,
+    │                                    #   ThemeToggle, GodRay, SpotlightCard, SpotlightGallery
+    ├── lib/
+    │   ├── server/                      # Solo servidor (BFF y middleware); nunca se importa desde una isla React
+    │   │   ├── env.ts                   # BACKEND_URL, DEMO_MODE, COOKIE_SECURE y TRUST_PROXY
+    │   │   ├── bff.ts                   # Reenvío a FastAPI con el token de la sesión
+    │   │   ├── session.ts               # Cookie de sesión y validación con caché de 30 s
+    │   │   ├── rateLimit.ts, authProxy.ts  # Límite de intentos por IP y reenvío de login/registro
+    │   │   └── simulation.ts            # Resultado simulado para el modo demostración
+    │   └── client/                      # Solo navegador
+    │       ├── api.ts                   # fetch hacia el BFF: ante un 401 vuelve al login
+    │       ├── authForm.ts              # Comportamiento de los formularios de acceso
+    │       └── clipboard.ts             # Copiar al portapapeles con respaldo para HTTP
+    ├── styles/
+    │   ├── global.css                   # Punto de entrada: importa Tailwind y los archivos de abajo
+    │   ├── tokens.css                   # Paleta, tipografía, degradados y sombras (única fuente de colores)
+    │   ├── theme-dark.css               # Valores de los tokens en modo oscuro
+    │   ├── base.css, components.css     # Elementos HTML y clases reutilizables (botones, tablas, campos)
+    │   └── effects.css                  # Logo en máscara y rayos de luz
+    └── types/
+        ├── auth.ts                      # Espejo de app/contracts/auth.py
+        └── backend.ts                   # Tipos TypeScript de los contratos del backend
 ```
 
-`frontend/.dockerignore` excluye `node_modules` y `.next` del build de Docker: se generan dentro de la imagen.
+**Dónde va el código nuevo**
+
+- Una pantalla o funcionalidad nueva es una carpeta en `src/features/<nombre>/` con sus componentes y su lógica. Lo que no depende de React (tipos, cálculos, validaciones) va en un `.ts` aparte dentro de la misma carpeta.
+- Algo que usan dos o más funcionalidades sube a `src/components/` (`ui/` si no sabe nada del dominio, `shared/` si sí).
+- `src/lib/server/` solo se importa desde `pages/api/*`, `middleware.ts` y el frontmatter de Astro; `src/lib/client/` solo desde el navegador.
+- Los colores salen siempre de `styles/tokens.css` (y su versión oscura en `theme-dark.css`): nada de hex sueltos en componentes.
+- Las importaciones usan el alias `@/` (por ejemplo `@/features/review/review`), no rutas relativas.
+
+`frontend/.dockerignore` excluye `node_modules`, `dist` y `.astro` del build de Docker: se generan dentro de la imagen.
 
 ---
 
 ## 🔄 Arquitectura de Comunicación (BFF)
 
-El navegador nunca llama directamente a FastAPI: usa Route Handlers de Next.js como **Backend-For-Frontend (BFF)**, lo que evita problemas de CORS. En Docker, el proxy llega al backend por `BACKEND_URL=http://backend:8000`.
+El navegador nunca llama directamente a FastAPI: usa endpoints de servidor de Astro (`src/pages/api/*`) como **Backend-For-Frontend (BFF)**, lo que evita problemas de CORS. En Docker, el proxy llega al backend por `BACKEND_URL=http://backend:8000`.
 
 ```
 [Navegador Web / React]
         │
         ▼
-[Next.js API Routes en /api/*]
+[Endpoints Astro en /api/*]
         │
         ▼
 [FastAPI Backend]
@@ -167,7 +233,11 @@ El navegador nunca llama directamente a FastAPI: usa Route Handlers de Next.js c
 ```
 
 - **Fila por fila**: el backend procesa un lote a la vez y, dentro de él, una interacción a la vez. La página consulta el avance cada 2 s y agrega a la tabla las filas nuevas. No hay un tiempo máximo de espera por lote; si el backend deja de responder 5 veces seguidas, el lote se marca como interrumpido y se conservan las filas recibidas.
-- **Resiliencia ante caídas (modo demostración)**: si el backend no está disponible al crear el trabajo, el proxy responde con un resultado simulado (`src/lib/simulation.ts`) para seguir navegando la interfaz. Los cambios de revisión sobre esos datos solo se guardan en la sesión.
+- **Sesión**: al iniciar sesión, el BFF guarda el token que emite FastAPI en la cookie `cia_session` (`httpOnly`, `SameSite=Strict`); el JavaScript del navegador nunca lo ve. El middleware (`src/middleware.ts`) valida la cookie contra `/api/v1/auth/me` (con una caché de 30 s), redirige las páginas a `/login` y responde 401 en `/api/*`. La excepción es `/`: sin sesión muestra la portada pública y con sesión, la aplicación. Cada llamada al backend lleva el token, así que FastAPI vuelve a comprobar sesión y rol: un usuario desactivado pierde el acceso a la API al instante.
+- **CSRF**: además de `SameSite=Strict`, las peticiones `POST`/`PATCH`/`PUT`/`DELETE` a `/api/*` deben venir de la misma página (`Sec-Fetch-Site` u `Origin`); si no, 403.
+- **Límite de intentos**: 20 intentos fallidos de login, registro o restablecimiento por IP cada 15 minutos (el backend limita además 5 por correo).
+- **Modo demostración (`DEMO_MODE=true`)**: sin inicio de sesión ni backend; los trabajos se simulan (`src/lib/server/simulation.ts`) y la revisión solo vive en la sesión. Solo se activa a propósito: si el backend se cae, la aplicación muestra **Sin conexión** y no inventa resultados.
+- **Detrás de un proxy HTTPS** (Caddy, load balancer): define `COOKIE_SECURE=true` para marcar la cookie como `Secure`, y `TRUST_PROXY=true` para tomar la IP del cliente de `X-Forwarded-For` (solo si el proxy es tuyo; si no, cualquiera podría falsear su IP).
 
 ---
 
