@@ -3,10 +3,10 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
-from app.auth.dependencies import requiere_lector, requiere_revisor
-from app.contracts.models import RespuestaProcesamiento, SolicitudProcesamiento
-from app.schemas.internal import ResultadoPipelineItem
+from app.auth.dependencies import autor_actual, requiere_admin, requiere_lector
+from app.contracts.models import Autoria, RespuestaProcesamiento
 from app.storage.oci_storage import (
     build_object_path,
     download_package,
@@ -14,24 +14,30 @@ from app.storage.oci_storage import (
     get_namespace,
     list_published_packages,
 )
-from app.storage.service import publicar_lote_a_oci
+from app.storage.service import LoteNoPublicable, publicar_lote
 
 router = APIRouter()
 
 
-class SolicitudPublicacion(SolicitudProcesamiento):
-    items: list[ResultadoPipelineItem] | None = None
+class SolicitudPublicacion(BaseModel):
+    lote_id: str
 
 
-@router.post("/publish", response_model=RespuestaProcesamiento, dependencies=[Depends(requiere_revisor)])
-def publish_to_oci(request: SolicitudPublicacion) -> RespuestaProcesamiento:
-    """Endpoint oficial del Hackathon:
-    Recibe el lote de interacciones, realiza el análisis de IA (o usa los ítems revisados),
-    selecciona los mejores activos de distribución, persiste el paquete en OCI Object Storage
-    (capa Always Free) y devuelve la salida oficial estructurada exigida por el documento del proyecto.
+@router.post("/publish", response_model=RespuestaProcesamiento, dependencies=[Depends(requiere_admin)])
+def publish_to_oci(request: SolicitudPublicacion, autor: Autoria = Depends(autor_actual)) -> RespuestaProcesamiento:
+    """Publica un lote revisado por el equipo (solo admin).
+
+    Toma las decisiones de revisión guardadas en el servidor (nunca las que envía el cliente),
+    selecciona los activos aprobados de mayor relevancia, persiste el paquete en OCI Object
+    Storage con su auditoría y devuelve la salida oficial `RespuestaProcesamiento`. Después de
+    publicar, los activos del lote ya no se pueden cambiar.
     """
     try:
-        return publicar_lote_a_oci(request, items_procesados=request.items)
+        return publicar_lote(request.lote_id, autor)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error).strip("'")) from error
+    except LoteNoPublicable as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     except Exception as error:
         raise HTTPException(
             status_code=500,

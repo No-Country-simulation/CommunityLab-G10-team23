@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { forwardAuth } from "@/lib/authProxy";
+import { forwardAuth } from "@/lib/server/authProxy";
 
 // Crea la cuenta con el token de la invitación y deja la sesión iniciada.
 export const POST: APIRoute = (context) =>

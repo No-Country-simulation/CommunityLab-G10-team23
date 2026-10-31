@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { backendUrl, errorMessage, isDemo, json } from "@/lib/bff";
+import { backendUrl, errorMessage, isDemo, json } from "@/lib/server/bff";
 
 // Público: la barra lateral lo usa para mostrar si hay conexión con el backend.
 export const GET: APIRoute = async () => {

@@ -1,0 +1,86 @@
+/*
+ * Modo oscuro. Se invierten las escalas en lugar de tocar cada componente: un `bg-ink-50`
+ * sigue siendo "el fondo más suave" y un `text-ink-900` "el texto principal" en los dos temas.
+ * --color-white no cambia (texto sobre degradados y botones); las superficies usan --color-surface.
+ * Fondo base: el --background oscuro de Dong (#180046) llevado casi a negro para leer tablas.
+ */
+:root[data-theme="dark"] {
+  --color-ink-50: #0d0a1e;
+  --color-ink-100: #1d1936;
+  --color-ink-200: #2a2547;
+  --color-ink-300: #3d375c;
+  --color-ink-400: #6b6789;
+  --color-ink-500: #9d9ab6;
+  --color-ink-600: #b5b2cb;
+  --color-ink-700: #cac8dc;
+  --color-ink-800: #dfddec;
+  --color-ink-900: #f3f2fa;
+  --color-ink-950: #fbfaff;
+
+  --color-brand-50: #1a1440;
+  --color-brand-100: #251c56;
+  --color-brand-200: #342871;
+  --color-brand-300: #4b3c97;
+  --color-brand-400: #7c5ef5;
+  --color-brand-500: #8b60ff;
+  --color-brand-600: #8a6cff; /* 5.2:1 como texto sobre el fondo y 3.7:1 con texto blanco */
+  --color-brand-700: #a891ff;
+  --color-brand-800: #c4b5ff;
+  --color-brand-900: #e0d8ff;
+  --color-brand-950: #f3f0ff;
+
+  --color-success-50: #0c2418;
+  --color-success-100: #10301f;
+  --color-success-200: #17482d;
+  --color-success-300: #237a48;
+  --color-success-600: #4fd17f;
+  --color-success-700: #6fdd96;
+  --color-success-800: #9be9b5;
+  --color-success-900: #c8f5d6;
+
+  --color-danger-50: #2a0f14;
+  --color-danger-100: #3a141b;
+  --color-danger-200: #5a1f29;
+  --color-danger-300: #8c2e3c;
+  --color-danger-600: #ff7b80;
+  --color-danger-700: #ff9a9c;
+  --color-danger-800: #ffb8b9;
+  --color-danger-900: #ffd9d9;
+
+  --color-warning-50: #261a06;
+  --color-warning-100: #33230a;
+  --color-warning-200: #4f370f;
+  --color-warning-600: #f5b440;
+  --color-warning-700: #f9c76a;
+  --color-warning-800: #fbd892;
+  --color-warning-900: #fde8c0;
+
+  --color-info-50: #0a1d29;
+  --color-info-100: #0f2a3a;
+  --color-info-200: #173f55;
+  --color-info-300: #2b6f94;
+  --color-info-600: #6cbde6;
+  --color-info-700: #8fcdee;
+  --color-info-800: #b3ddf4;
+  --color-info-900: #d6eefa;
+
+  --color-surface: #141129;
+  --color-landing-bg: #120836;
+  --color-landing-ink: #e8e7ff;
+  --color-hairline: rgb(255 255 255 / 0.12);
+  --color-scrim: rgb(2 0 10 / 0.7);
+  --color-chart-text: #b9b7cc;
+  --color-chart-track: rgb(160 140 251 / 0.25);
+  --color-table-head: rgb(20 17 41 / 0.85);
+  --color-table-border: #262241;
+  --color-table-muted: #9d9ab6;
+  --color-table-text: #e9e8f3;
+
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.06), 0 8px 24px rgb(0 0 0 / 0.35);
+  --shadow-control: 0 0 0 1px rgb(255 255 255 / 0.14);
+}
+
+/* Sobre fondos oscuros los rayos no se invierten (ver .godray--dark). */
+:root[data-theme="dark"] .godray {
+  filter: blur(18px);
+}

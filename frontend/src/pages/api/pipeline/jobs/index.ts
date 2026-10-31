@@ -1,7 +1,23 @@
 import type { APIRoute } from "astro";
 import type { SolicitudProcesamiento, TrabajoPipeline } from "@/types/backend";
-import { generateSimulatedPipeline } from "@/lib/simulation";
-import { backendError, backendFetch, errorMessage, isDemo, json } from "@/lib/bff";
+import { generateSimulatedPipeline } from "@/lib/server/simulation";
+import { backendError, backendFetch, errorMessage, isDemo, json } from "@/lib/server/bff";
+
+// Lotes del equipo que siguen sin publicarse: cualquier revisor puede abrirlos y revisarlos.
+export const GET: APIRoute = async ({ locals }) => {
+  // En demostración los lotes viven solo en el navegador de quien los sube.
+  if (isDemo()) return json({ source: "simulation", data: [] });
+
+  try {
+    const response = await backendFetch(locals.token, "/api/v1/pipeline/jobs?sin_publicar=true", {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) return backendError(response, "No se pudieron cargar los lotes del equipo");
+    return json({ source: "fastapi", data: await response.json() });
+  } catch (error) {
+    return json({ error: "No pudimos conectar con el servidor", detail: errorMessage(error) }, 502);
+  }
+};
 
 // Crea un trabajo en el backend; responde de inmediato y el avance se consulta en /api/pipeline/jobs/[id].
 export const POST: APIRoute = async ({ request, locals }) => {

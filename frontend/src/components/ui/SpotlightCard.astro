@@ -1,0 +1,34 @@
+---
+/*
+ * Tarjeta spotlight [ref] (ver styles/spotlight.css). Los halos los coloca SpotlightGallery.
+ * Opcionalmente, una ficha con icono del color de la tarjeta (la de SpotlightPostCard de Dong),
+ * colocada en una columna a la izquierda del contenido. Versión React: components/ui/Spotlight.tsx.
+ */
+interface Props {
+  /** Color de la tarjeta en HEX (#rrggbb). */
+  tone: string;
+  /** false: sin elevación al pasar el cursor (p. ej. un formulario, para que no se mueva al escribir). */
+  lift?: boolean;
+  class?: string;
+}
+
+const { tone, lift = true, class: className } = Astro.props;
+const hasIcon = Astro.slots.has("icon");
+---
+
+<div class:list={["spot-card", !lift && "no-lift", className]} style={`--spot-tone: ${tone}`}>
+  <div class="spot-content">
+    <div class:list={["spot-inner", hasIcon && "with-icon"]}>
+      {
+        hasIcon && (
+          <div class="spot-icon" aria-hidden="true">
+            <slot name="icon" />
+          </div>
+        )
+      }
+      <div class="spot-body">
+        <slot />
+      </div>
+    </div>
+  </div>
+</div>

@@ -128,12 +128,13 @@ def test_lector_can_read_packages_but_not_review_or_manage_users(client, crear_c
     assert client.get("/api/v1/usuarios", headers=headers).status_code == 403
 
 
-def test_revisor_can_review_but_not_manage_users(client, crear_cuenta, login):
+def test_revisor_can_review_but_not_publish_or_manage_users(client, crear_cuenta, login):
     crear_cuenta("revisor@ejemplo.com", RolUsuario.revisor)
     headers = login("revisor@ejemplo.com")
 
     with patch("app.api.v1.review.list_assets", return_value=[]):
         assert client.get("/api/v1/review/assets", headers=headers).status_code == 200
+    assert client.post("/api/v1/storage/publish", headers=headers, json={"lote_id": "job_x"}).status_code == 403
     assert client.get("/api/v1/usuarios", headers=headers).status_code == 403
     assert client.post(
         "/api/v1/usuarios/invitaciones", headers=headers, json={"email": "x@ejemplo.com", "rol": "admin"}

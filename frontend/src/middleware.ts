@@ -1,6 +1,6 @@
 import { defineMiddleware } from "astro:middleware";
-import { isDemo } from "@/lib/env";
-import { SESSION_COOKIE, clearSessionCookie, validateSession } from "@/lib/session";
+import { isDemo } from "@/lib/server/env";
+import { SESSION_COOKIE, clearSessionCookie, validateSession } from "@/lib/server/session";
 import type { Usuario } from "@/types/auth";
 
 // Páginas y endpoints que no exigen sesión.

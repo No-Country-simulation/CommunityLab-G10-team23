@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { backendError, backendFetch, errorMessage, json } from "@/lib/bff";
+import { backendError, backendFetch, errorMessage, json } from "@/lib/server/bff";
 
 // Consulta el avance de un trabajo; `desde` limita la respuesta a las interacciones nuevas.
 export const GET: APIRoute = async ({ params, url, locals }) => {

@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { backendError, backendFetch, errorMessage, isDemo, json } from "@/lib/bff";
+import { backendError, backendFetch, errorMessage, isDemo, json } from "@/lib/server/bff";
 
 export const GET: APIRoute = async ({ params, locals }) => {
   if (isDemo()) return json({ error: "En modo demostración no hay paquetes guardados" }, 404);

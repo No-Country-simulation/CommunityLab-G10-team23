@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { backendError, backendFetch, errorMessage, json } from "@/lib/bff";
+import { backendError, backendFetch, errorMessage, json } from "@/lib/server/bff";
 
 // Gestión del equipo (solo administración). El backend vuelve a exigir el rol; aquí se corta
 // antes y solo se reenvían las rutas que existen en /api/v1/usuarios.

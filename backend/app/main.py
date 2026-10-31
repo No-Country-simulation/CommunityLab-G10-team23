@@ -1,61 +1,36 @@
-from fastapi import Depends, FastAPI
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 
-from app.api.v1.auth import router as auth_router
-from app.api.v1.ingestion import router as ingestion_router
-from app.api.v1.pipeline import router as pipeline_router
-from app.api.v1.review import router as review_router
-from app.api.v1.storage import router as storage_router
-from app.api.v1.usuarios import router as usuarios_router
-from app.auth.dependencies import requiere_admin, requiere_revisor
+from app.api.v1.router import api_router
 from app.config import settings
-
-app = FastAPI(title=settings.PROJECT_NAME)
-
-# Todo exige sesión salvo /health y los endpoints públicos de /auth (login, registro, restablecer).
-# Storage asigna el rol en cada endpoint: consultar es de lector, publicar es de revisor.
-app.include_router(
-    auth_router,
-    prefix=f"{settings.API_V1_STR}/auth",
-    tags=["Autenticación"],
-)
-app.include_router(
-    usuarios_router,
-    prefix=f"{settings.API_V1_STR}/usuarios",
-    tags=["Usuarios"],
-    dependencies=[Depends(requiere_admin)],
-)
-app.include_router(
-    ingestion_router,
-    prefix=f"{settings.API_V1_STR}/ingest",
-    tags=["Ingestion"],
-    dependencies=[Depends(requiere_revisor)],
-)
-app.include_router(
-    pipeline_router,
-    prefix=f"{settings.API_V1_STR}/pipeline",
-    tags=["Pipeline"],
-    dependencies=[Depends(requiere_revisor)],
-)
-app.include_router(
-    review_router,
-    prefix=f"{settings.API_V1_STR}/review",
-    tags=["HITL Review"],
-    dependencies=[Depends(requiere_revisor)],
-)
-app.include_router(
-    storage_router,
-    prefix=f"{settings.API_V1_STR}/storage",
-    tags=["OCI Storage (Equipo D)"],
-)
+from app.workflow.repository import interrumpir_lotes_en_curso
 
 
-@app.get("/", include_in_schema=False)
-def root():
-    """Redirige automáticamente la raíz a la documentación interactiva Swagger UI."""
-    return RedirectResponse(url="/docs")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Los hilos de proceso no sobreviven a un reinicio: esos lotes quedan como fallidos,
+    # con sus interacciones ya analizadas disponibles para revisión.
+    interrumpir_lotes_en_curso()
+    yield
 
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok", "environment": settings.ENVIRONMENT}
+def create_app() -> FastAPI:
+    """Construye la aplicación: rutas de sistema (/, /health) y la API versionada."""
+    application = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
+
+    @application.get("/", include_in_schema=False)
+    def root():
+        """Redirige automáticamente la raíz a la documentación interactiva Swagger UI."""
+        return RedirectResponse(url="/docs")
+
+    @application.get("/health")
+    def health_check():
+        return {"status": "ok", "environment": settings.ENVIRONMENT}
+
+    application.include_router(api_router, prefix=settings.API_V1_STR)
+    return application
+
+
+app = create_app()

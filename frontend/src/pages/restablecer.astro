@@ -26,7 +26,7 @@ import AuthLayout from "@/layouts/AuthLayout.astro";
 </AuthLayout>
 
 <script>
-  import { bindAuthForm, checkNewPassword, showAlert, takeToken } from "@/lib/authForm";
+  import { bindAuthForm, checkNewPassword, showAlert, takeToken } from "@/lib/client/authForm";
 
   const form = document.querySelector<HTMLFormElement>("#restablecer-form")!;
   const token = takeToken();

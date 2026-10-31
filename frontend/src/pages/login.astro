@@ -40,7 +40,7 @@ const aviso =
 </AuthLayout>
 
 <script>
-  import { bindAuthForm, safeNext } from "@/lib/authForm";
+  import { bindAuthForm, safeNext } from "@/lib/client/authForm";
 
   const form = document.querySelector<HTMLFormElement>("#login-form")!;
   bindAuthForm(form, {

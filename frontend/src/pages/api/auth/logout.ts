@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
-import { backendFetch, json } from "@/lib/bff";
-import { SESSION_COOKIE, clearSessionCookie, invalidateSession } from "@/lib/session";
+import { backendFetch, json } from "@/lib/server/bff";
+import { SESSION_COOKIE, clearSessionCookie, invalidateSession } from "@/lib/server/session";
 
 // Público a propósito: aunque la sesión ya no sea válida, siempre borra la cookie.
 export const POST: APIRoute = async ({ cookies }) => {

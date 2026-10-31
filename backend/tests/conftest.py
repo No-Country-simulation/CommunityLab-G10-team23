@@ -19,8 +19,9 @@ ADMIN_SIMULADO = UsuarioPublico(
 
 @pytest.fixture(autouse=True)
 def _auth_db_temporal(tmp_path, monkeypatch):
-    """Ningún test escribe en backend/data/auth.db."""
+    """Ningún test escribe en backend/data/auth.db ni en backend/data/app.db."""
     monkeypatch.setenv("AUTH_DB_PATH", str(tmp_path / "auth.db"))
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "app.db"))
     limite_login.limpiar()
     yield
     limite_login.limpiar()

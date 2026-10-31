@@ -153,31 +153,61 @@ frontend/
     │       ├── review/assets/[id].ts    # PATCH /api/v1/review/assets/{id}
     │       └── storage/                 # packages, packages/[...slug] y publish (OCI vía backend)
     ├── layouts/
-    │   ├── BaseLayout.astro             # <html>, <head>, fuentes y estilos globales
+    │   ├── BaseLayout.astro             # <html>, <head>, fuentes, estilos y script de tema (claro/oscuro)
     │   └── AuthLayout.astro             # Marco de las pantallas de acceso
-    ├── styles/
-    │   └── global.css                   # Tokens de color y tipografía (única fuente de colores)
-    ├── components/
-    │   ├── ReviewApp.tsx                # Estado de la app: carga del lote, avance, pestañas, filtros, revisión y vistas
-    │   ├── Header.tsx                   # Cabecera: lote y avance, cargar JSON, reprocesar, guardar, estado del backend
-    │   ├── ReviewTable.tsx              # Tabla de datos con menú ⋮ por fila
-    │   ├── InteractionDetailModal.tsx   # Ventana de detalle con editor por formato y acciones HITL
-    │   ├── HistoryView.tsx              # Historial y dashboard (se carga al abrir la vista)
-    │   ├── TeamView.tsx                 # Equipo: personas, invitaciones y enlaces de un solo uso (solo administración)
-    │   └── landing/                     # Portada pública inspirada en el tema Dong (GodRay, tarjetas spotlight, navegación)
+    ├── features/                        # Una carpeta por funcionalidad; dentro, sus componentes y su lógica
+    │   ├── review/                      # Bandeja de revisión
+    │   │   ├── ReviewApp.tsx            # Isla principal: barra lateral, carga del lote, avance, revisión y vistas
+    │   │   ├── ReviewTable.tsx          # Tabla de datos con menú ⋮ por fila
+    │   │   ├── InteractionDetailModal.tsx  # Detalle con editor por formato y acciones HITL
+    │   │   ├── review.ts                # Pestañas, etiquetas, campos por formato y armado de filas
+    │   │   └── batch.ts                 # Lectura y validación del JSON que sube el usuario
+    │   ├── history/                     # Historial (se carga al abrir la vista)
+    │   │   ├── HistoryView.tsx          # Carga de paquetes, filtros compartidos y tabla de casos
+    │   │   ├── DashboardView.tsx        # Dashboard de comunidad
+    │   │   ├── DashboardCharts.tsx      # Gráficos (anillo, columnas, barras)
+    │   │   ├── CaseDetailModal.tsx      # Detalle de un caso guardado y su JSON
+    │   │   └── model.ts                 # Tipos de paquetes, fechas y cálculo de métricas (sin React)
+    │   ├── team/                        # Equipo (solo administración)
+    │   │   ├── TeamView.tsx             # Personas e invitaciones
+    │   │   ├── TeamCards.tsx            # Tarjetas de persona e invitación
+    │   │   ├── TeamDialogs.tsx          # Invitar y enlace de un solo uso
+    │   │   └── utils.ts                 # Llamadas a /api/usuarios y formato
+    │   └── landing/                     # Portada pública (navegación, hero, producto, cierre, pie)
+    ├── components/                      # Piezas compartidas entre funcionalidades
+    │   ├── layout/Sidebar.tsx           # Navegación lateral de la app
+    │   ├── shared/                      # Piezas de dominio usadas por bandeja e historial (DetailPanel, StatusCards)
+    │   └── ui/                          # Primitivas sin dominio: AlertDialog, PageHeader, LoadingState,
+    │                                    #   ThemeToggle, GodRay, SpotlightCard, SpotlightGallery
     ├── lib/
-    │   ├── env.ts                       # BACKEND_URL, DEMO_MODE, COOKIE_SECURE y TRUST_PROXY (solo servidor)
-    │   ├── bff.ts                       # Reenvío a FastAPI con el token de la sesión (solo servidor)
-    │   ├── session.ts                   # Cookie de sesión y validación con caché de 30 s (solo servidor)
-    │   ├── rateLimit.ts, authProxy.ts   # Límite de intentos por IP y reenvío de login/registro (solo servidor)
-    │   ├── api.ts                       # fetch del navegador: ante un 401 vuelve al login
-    │   ├── authForm.ts                  # Comportamiento de los formularios de acceso
-    │   ├── review.ts                    # Pestañas, etiquetas, campos por formato y armado de filas
-    │   ├── samples.ts                   # Lotes de demostración
-    │   └── simulation.ts                # Resultado simulado para el modo demostración
+    │   ├── server/                      # Solo servidor (BFF y middleware); nunca se importa desde una isla React
+    │   │   ├── env.ts                   # BACKEND_URL, DEMO_MODE, COOKIE_SECURE y TRUST_PROXY
+    │   │   ├── bff.ts                   # Reenvío a FastAPI con el token de la sesión
+    │   │   ├── session.ts               # Cookie de sesión y validación con caché de 30 s
+    │   │   ├── rateLimit.ts, authProxy.ts  # Límite de intentos por IP y reenvío de login/registro
+    │   │   └── simulation.ts            # Resultado simulado para el modo demostración
+    │   └── client/                      # Solo navegador
+    │       ├── api.ts                   # fetch hacia el BFF: ante un 401 vuelve al login
+    │       ├── authForm.ts              # Comportamiento de los formularios de acceso
+    │       └── clipboard.ts             # Copiar al portapapeles con respaldo para HTTP
+    ├── styles/
+    │   ├── global.css                   # Punto de entrada: importa Tailwind y los archivos de abajo
+    │   ├── tokens.css                   # Paleta, tipografía, degradados y sombras (única fuente de colores)
+    │   ├── theme-dark.css               # Valores de los tokens en modo oscuro
+    │   ├── base.css, components.css     # Elementos HTML y clases reutilizables (botones, tablas, campos)
+    │   └── effects.css                  # Logo en máscara y rayos de luz
     └── types/
+        ├── auth.ts                      # Espejo de app/contracts/auth.py
         └── backend.ts                   # Tipos TypeScript de los contratos del backend
 ```
+
+**Dónde va el código nuevo**
+
+- Una pantalla o funcionalidad nueva es una carpeta en `src/features/<nombre>/` con sus componentes y su lógica. Lo que no depende de React (tipos, cálculos, validaciones) va en un `.ts` aparte dentro de la misma carpeta.
+- Algo que usan dos o más funcionalidades sube a `src/components/` (`ui/` si no sabe nada del dominio, `shared/` si sí).
+- `src/lib/server/` solo se importa desde `pages/api/*`, `middleware.ts` y el frontmatter de Astro; `src/lib/client/` solo desde el navegador.
+- Los colores salen siempre de `styles/tokens.css` (y su versión oscura en `theme-dark.css`): nada de hex sueltos en componentes.
+- Las importaciones usan el alias `@/` (por ejemplo `@/features/review/review`), no rutas relativas.
 
 `frontend/.dockerignore` excluye `node_modules`, `dist` y `.astro` del build de Docker: se generan dentro de la imagen.
 
@@ -206,7 +236,7 @@ El navegador nunca llama directamente a FastAPI: usa endpoints de servidor de As
 - **Sesión**: al iniciar sesión, el BFF guarda el token que emite FastAPI en la cookie `cia_session` (`httpOnly`, `SameSite=Strict`); el JavaScript del navegador nunca lo ve. El middleware (`src/middleware.ts`) valida la cookie contra `/api/v1/auth/me` (con una caché de 30 s), redirige las páginas a `/login` y responde 401 en `/api/*`. La excepción es `/`: sin sesión muestra la portada pública y con sesión, la aplicación. Cada llamada al backend lleva el token, así que FastAPI vuelve a comprobar sesión y rol: un usuario desactivado pierde el acceso a la API al instante.
 - **CSRF**: además de `SameSite=Strict`, las peticiones `POST`/`PATCH`/`PUT`/`DELETE` a `/api/*` deben venir de la misma página (`Sec-Fetch-Site` u `Origin`); si no, 403.
 - **Límite de intentos**: 20 intentos fallidos de login, registro o restablecimiento por IP cada 15 minutos (el backend limita además 5 por correo).
-- **Modo demostración (`DEMO_MODE=true`)**: sin inicio de sesión ni backend; los trabajos se simulan (`src/lib/simulation.ts`) y la revisión solo vive en la sesión. Solo se activa a propósito: si el backend se cae, la aplicación muestra **Sin conexión** y no inventa resultados.
+- **Modo demostración (`DEMO_MODE=true`)**: sin inicio de sesión ni backend; los trabajos se simulan (`src/lib/server/simulation.ts`) y la revisión solo vive en la sesión. Solo se activa a propósito: si el backend se cae, la aplicación muestra **Sin conexión** y no inventa resultados.
 - **Detrás de un proxy HTTPS** (Caddy, load balancer): define `COOKIE_SECURE=true` para marcar la cookie como `Secure`, y `TRUST_PROXY=true` para tomar la IP del cliente de `X-Forwarded-For` (solo si el proxy es tuyo; si no, cualquiera podría falsear su IP).
 
 ---

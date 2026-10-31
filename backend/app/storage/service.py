@@ -1,23 +1,24 @@
 """Servicio de ensamblado y publicación del paquete final para OCI (Equipo D)."""
 
+import threading
 from collections import Counter
-from datetime import datetime, timezone
 from typing import Any
 
-from app.contracts.enums import EstadoAprobacion, EstadoRespuesta
+from app.content.repository import revisores_del_lote
+from app.contracts.enums import EstadoRespuesta, EstadoTrabajo
 from app.contracts.models import (
     ActivosDistribucion,
     AlmacenamientoOCI,
+    Autoria,
     RespuestaProcesamiento,
     ResultadoAnalisisInterno,
     ResultadoGeneracionInterno,
     ResumenComunidad,
-    SolicitudProcesamiento,
     armar_respuesta_externa,
 )
 from app.schemas.internal import ResultadoPipelineItem
 from app.storage.oci_storage import list_published_packages, upload_package
-from app.workflow.pipeline import process_batch
+from app.workflow import repository as lotes
 
 
 def calcular_resumen_comunidad(items: list[ResultadoPipelineItem]) -> ResumenComunidad:
@@ -63,27 +64,25 @@ def calcular_resumen_comunidad(items: list[ResultadoPipelineItem]) -> ResumenCom
     )
 
 
-def publicar_lote_a_oci(
-    request: SolicitudProcesamiento,
-    *,
-    auto_aprobar_para_demo: bool = True,
-    client: Any | None = None,
-    items_procesados: list[ResultadoPipelineItem] | None = None,
-) -> RespuestaProcesamiento:
-    """Ejecuta el pipeline completo, ensambla los mejores activos y persiste el
-    paquete final en OCI Object Storage cumpliendo el contrato oficial del hackathon.
-    """
-    # 1. Obtener o procesar las interacciones
-    if items_procesados and len(items_procesados) > 0:
-        items = items_procesados
-    else:
-        resultado_pipeline = process_batch(request)
-        items = resultado_pipeline.interacciones_procesadas
+class LoteNoPublicable(Exception):
+    """El lote no se puede publicar todavía (sigue en proceso) o ya se publicó."""
 
-    # 2. Extraer análisis y generación interna para la regla de desempate
+
+# Una publicación a la vez: el número del paquete sale de contar los ya guardados
+# (mismo supuesto de un único worker que app/workflow/jobs.py).
+_publicacion_lock = threading.Lock()
+
+
+def armar_paquete(
+    items: list[ResultadoPipelineItem],
+) -> tuple[ActivosDistribucion, ResumenComunidad]:
+    """Aplica la regla oficial de selección sobre las decisiones de revisión ya guardadas.
+
+    Solo cuentan los candidatos aprobados por una persona; los pendientes y rechazados
+    no pasan a distribución.
+    """
     analisis_internos: list[ResultadoAnalisisInterno] = []
     generacion_internos: list[ResultadoGeneracionInterno] = []
-
     for item in items:
         if item.oportunidad and item.enrutamiento:
             analisis_internos.append(
@@ -94,60 +93,66 @@ def publicar_lote_a_oci(
                     enrutamiento=item.enrutamiento,
                 )
             )
-
-        candidatos = list(item.activos_candidatos)
-        # Si se procesa directamente vía API sin revisión previa en UI,
-        # se auto-aprueban para demo asegurando que gane el mejor según relevance_score.
-        # Si ya vienen de revisión manual (items_procesados), se respeta estrictamente la decisión del usuario.
-        if not items_procesados and auto_aprobar_para_demo:
-            for c in candidatos:
-                c.estado_aprobacion = EstadoAprobacion.aprobado
-
         generacion_internos.append(
             ResultadoGeneracionInterno(
                 interaccion_id=item.interaccion.id,
-                activos_candidatos=candidatos,
+                activos_candidatos=list(item.activos_candidatos),
             )
         )
+    return armar_respuesta_externa(analisis_internos, generacion_internos), calcular_resumen_comunidad(items)
 
-    # 3. Aplicar regla de selección oficial (Equipo D): gana el mayor relevance_score
-    activos_oficiales: ActivosDistribucion = armar_respuesta_externa(
-        analisis_internos, generacion_internos
-    )
 
-    # 4. Calcular el resumen de la comunidad
-    resumen = calcular_resumen_comunidad(items)
+def publicar_lote(lote_id: str, autor: Autoria, *, client: Any | None = None) -> RespuestaProcesamiento:
+    """Guarda en OCI el paquete final de un lote revisado y lo cierra para nuevas decisiones.
 
-    # 5. Determinar nombre secuencial del paquete ("Paquete 1", "Paquete 2", etc.)
-    try:
-        paquetes_existentes = list_published_packages(client=client)
-        siguiente_numero = len(paquetes_existentes) + 1
-    except Exception:
-        siguiente_numero = 1
+    Las decisiones se leen de app.db, nunca del cliente. El paquete lleva un bloque
+    `auditoria` (interno) con quién procesó, quién revisó y quién publicó; la respuesta
+    sigue siendo el contrato externo oficial `RespuestaProcesamiento`.
+    """
+    with _publicacion_lock:
+        lote = lotes.obtener_lote(lote_id)
+        if lote is None:
+            raise KeyError(f"No existe el lote {lote_id}")
+        if lote.publicado_por is not None:
+            raise LoteNoPublicable(
+                f"El lote ya lo publicó {lote.publicado_por.nombre} el {lote.publicado_por.en:%d/%m/%Y}"
+            )
+        if lote.estado in (EstadoTrabajo.en_cola, EstadoTrabajo.en_proceso):
+            raise LoteNoPublicable("El lote todavía se está procesando; espera a que termine para publicarlo")
 
-    nombre_legible = f"Paquete {siguiente_numero}"
-    clave_objeto = f"paquete_{siguiente_numero}"
+        items = lote.interacciones_procesadas
+        activos_oficiales, resumen = armar_paquete(items)
 
-    # 6. Armar el paquete previo a persistencia (con JSON completo, resumen y casos)
-    paquete_previo = {
-        "status": EstadoRespuesta.exito.value,
-        "nombre_paquete": nombre_legible,
-        "periodo_referencia": request.periodo_referencia,
-        "origen_comunidad": request.origen_comunidad,
-        "fecha_guardado": datetime.now(timezone.utc).isoformat(),
-        "resumen_comunidad": resumen.model_dump(mode="json"),
-        "activos_distribucion_generados": activos_oficiales.model_dump(mode="json", exclude_none=True),
-        "casos": [item.model_dump(mode="json") for item in items],
-    }
+        try:
+            siguiente_numero = len(list_published_packages(client=client)) + 1
+        except Exception:
+            siguiente_numero = 1
 
-    # 7. Persistir en OCI Object Storage bajo activos/paquete_{N}/paquete-distribucion.json
-    almacenamiento: AlmacenamientoOCI = upload_package(
-        paquete_previo,
-        periodo_referencia=clave_objeto,
-        client=client,
-    )
+        paquete = {
+            "status": EstadoRespuesta.exito.value,
+            "nombre_paquete": f"Paquete {siguiente_numero}",
+            "periodo_referencia": lote.periodo_referencia,
+            "origen_comunidad": lote.origen_comunidad,
+            "fecha_guardado": autor.en.isoformat(),
+            "auditoria": {
+                "lote_id": lote_id,
+                "procesado_por": lote.creado_por.model_dump(mode="json") if lote.creado_por else None,
+                "publicado_por": autor.model_dump(mode="json"),
+                "revisores": [r.model_dump(mode="json") for r in revisores_del_lote(lote_id)],
+            },
+            "resumen_comunidad": resumen.model_dump(mode="json"),
+            "activos_distribucion_generados": activos_oficiales.model_dump(mode="json", exclude_none=True),
+            "casos": [item.model_dump(mode="json") for item in items],
+        }
 
-    # 8. Respuesta consolidada final oficial
+        # activos/paquete_{N}/paquete-distribucion.json, igual que los paquetes anteriores.
+        almacenamiento: AlmacenamientoOCI = upload_package(
+            paquete,
+            periodo_referencia=f"paquete_{siguiente_numero}",
+            client=client,
+        )
+        lotes.marcar_publicado(lote_id, autor, almacenamiento.ruta_objeto)
+
     return RespuestaProcesamiento(
         status=EstadoRespuesta.exito,
         resumen_comunidad=resumen,
@@ -157,6 +162,8 @@ def publicar_lote_a_oci(
 
 
 __all__ = [
+    "LoteNoPublicable",
+    "armar_paquete",
     "calcular_resumen_comunidad",
-    "publicar_lote_a_oci",
+    "publicar_lote",
 ]

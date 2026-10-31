@@ -1,12 +1,14 @@
 """Dependencias de FastAPI para exigir sesión y rol en los endpoints."""
 
 from collections.abc import Callable
+from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.auth.service import usuario_por_token
 from app.contracts.auth import RolUsuario, UsuarioPublico
+from app.contracts.models import Autoria
 
 # auto_error=False: respondemos 401 con nuestro propio mensaje. También habilita "Authorize" en Swagger.
 bearer = HTTPBearer(auto_error=False, description="Token de sesión devuelto por POST /api/v1/auth/login")
@@ -49,6 +51,11 @@ def requiere_rol(minimo: RolUsuario) -> Callable[..., UsuarioPublico]:
     return dependencia
 
 
+def autor_actual(usuario: UsuarioPublico = Depends(usuario_actual)) -> Autoria:
+    """Autoría de la acción en curso: la única fuente de "quién lo hizo" es la sesión."""
+    return Autoria(usuario_id=usuario.id, nombre=usuario.nombre, en=datetime.now(timezone.utc))
+
+
 requiere_lector = requiere_rol(RolUsuario.lector)
 requiere_revisor = requiere_rol(RolUsuario.revisor)
 requiere_admin = requiere_rol(RolUsuario.admin)
@@ -58,6 +65,7 @@ __all__ = [
     "bearer",
     "token_actual",
     "usuario_actual",
+    "autor_actual",
     "requiere_rol",
     "requiere_lector",
     "requiere_revisor",

@@ -5,7 +5,6 @@ from uuid import uuid4
 
 from app.ai.analyzer import analyze_interaction
 from app.content.generator import generate_assets
-from app.content.repository import upsert_generation_result
 from app.contracts.models import (
     AnalisisInterno,
     InteraccionInterna,
@@ -56,7 +55,10 @@ def iter_batch(
     classifier: Any | None = None,
     asset_generator: Callable | None = None,
 ) -> Iterator[ResultadoPipelineItem]:
-    """Orquesta Equipos A, B y C interacción por interacción, entregando cada resultado al terminarlo."""
+    """Orquesta Equipos A, B y C interacción por interacción, entregando cada resultado al terminarlo.
+
+    No persiste nada: quien la llama decide dónde se guardan los resultados (ver jobs.py).
+    """
     classifier = classifier or create_llm_classifier()
     graph = build_classification_graph(classifier)
 
@@ -108,8 +110,6 @@ def iter_batch(
             try:
                 gen_fn = asset_generator or generate_assets
                 generated = _execute_with_rate_limit_retry(lambda: gen_fn(team_b_result))
-                if generated.activos_candidatos:
-                    upsert_generation_result(generated)
             except Exception as content_error:
                 error = _combine_errors(error, f"Equipo C: {content_error}")
 

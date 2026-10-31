@@ -1,9 +1,9 @@
 import type { APIRoute } from "astro";
-import { backendError, backendFetch, errorMessage, isDemo, json } from "@/lib/bff";
+import { backendError, backendFetch, errorMessage, isDemo, json } from "@/lib/server/bff";
 
 export const PATCH: APIRoute = async ({ params, request, locals }) => {
   const id = params.id ?? "";
-  let body: { estado_aprobacion?: string };
+  let body: { estado_aprobacion?: string; contenido?: Record<string, unknown>; version?: number };
   try {
     body = await request.json();
   } catch (error) {

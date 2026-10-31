@@ -18,8 +18,8 @@ export const ROL_LABEL: Record<RolUsuario, string> = {
 };
 
 export const ROL_DESCRIPCION: Record<RolUsuario, string> = {
-  admin: "Todo lo de revisión, más invitar personas y gestionar el equipo.",
-  revisor: "Sube conversaciones, aprueba o rechaza contenido y lo guarda en el historial.",
+  admin: "Todo lo de revisión, más guardar los lotes en el historial, invitar personas y gestionar el equipo.",
+  revisor: "Sube conversaciones y aprueba o rechaza el contenido de cualquier lote del equipo.",
   lector: "Consulta la tabla de casos y el dashboard, sin cambiar nada.",
 };
 
