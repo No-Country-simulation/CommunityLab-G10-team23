@@ -5,7 +5,6 @@ from uuid import uuid4
 from pydantic import BaseModel, Field
 
 from .enums import (
-    AccionRevision,
     AssetCategory,
     EstadoAlmacenamientoOCI,
     EstadoAprobacion,
@@ -76,16 +75,6 @@ class RespuestaProcesamiento(BaseModel):
 # Contrato interno: comunicación entre los cuatro equipos.
 
 
-class Autoria(BaseModel):
-    """Quién hizo algo y cuándo. Lo sella siempre el backend con el usuario de la sesión,
-    nunca se acepta en el cuerpo de una petición. El nombre es una copia del momento:
-    el historial se sigue leyendo aunque la persona cambie de nombre o se desactive."""
-
-    usuario_id: str
-    nombre: str
-    en: datetime
-
-
 class InteraccionInterna(BaseModel):
     id: str = Field(default_factory=lambda: f"int_{uuid4().hex}")
     autor: str
@@ -126,21 +115,6 @@ class ActivoCandidato(BaseModel):
     tipo_activo: TipoActivoOficial
     contenido: dict[str, Any]
     estado_aprobacion: EstadoAprobacion = EstadoAprobacion.pendiente
-    # Revisión en equipo: última persona que aprobó, rechazó, reabrió o editó el activo,
-    # y versión para detectar que otra persona lo cambió mientras tanto.
-    revisado_por: Autoria | None = None
-    version: int = 1
-
-
-class EventoRevision(BaseModel):
-    """Una entrada del historial de un activo. Solo se agregan; nunca se modifican."""
-
-    candidato_id: str
-    accion: AccionRevision
-    estado_anterior: EstadoAprobacion
-    estado_nuevo: EstadoAprobacion
-    autor: Autoria
-    contenido_anterior: dict[str, Any] | None = None
 
 
 class ResultadoGeneracionInterno(BaseModel):
@@ -199,14 +173,12 @@ __all__ = [
     "ActivosDistribucion",
     "AlmacenamientoOCI",
     "RespuestaProcesamiento",
-    "Autoria",
     "InteraccionInterna",
     "AnalisisInterno",
     "OportunidadInterna",
     "EnrutamientoInterno",
     "ResultadoAnalisisInterno",
     "ActivoCandidato",
-    "EventoRevision",
     "ResultadoGeneracionInterno",
     "armar_respuesta_externa",
 ]

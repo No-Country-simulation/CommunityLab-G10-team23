@@ -1,1 +1,1 @@
-"""Community IA backend application package."""
+"""CommunityLab backend application package."""

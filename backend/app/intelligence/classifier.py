@@ -1,6 +1,6 @@
 from app.contracts.enums import AssetCategory
 
-from app.contracts.models import AnalisisInterno
+from .models import AnalisisInterno
 
 
 _SUPPORT_INTENTS = {

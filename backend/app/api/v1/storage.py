@@ -2,11 +2,10 @@
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException
 
-from app.auth.dependencies import autor_actual, requiere_admin, requiere_lector
-from app.contracts.models import Autoria, RespuestaProcesamiento
+from app.contracts.models import RespuestaProcesamiento, SolicitudProcesamiento
+from app.schemas.internal import ResultadoPipelineItem
 from app.storage.oci_storage import (
     build_object_path,
     download_package,
@@ -14,30 +13,24 @@ from app.storage.oci_storage import (
     get_namespace,
     list_published_packages,
 )
-from app.storage.service import LoteNoPublicable, publicar_lote
+from app.storage.service import publicar_lote_a_oci
 
 router = APIRouter()
 
 
-class SolicitudPublicacion(BaseModel):
-    lote_id: str
+class SolicitudPublicacion(SolicitudProcesamiento):
+    items: list[ResultadoPipelineItem] | None = None
 
 
-@router.post("/publish", response_model=RespuestaProcesamiento, dependencies=[Depends(requiere_admin)])
-def publish_to_oci(request: SolicitudPublicacion, autor: Autoria = Depends(autor_actual)) -> RespuestaProcesamiento:
-    """Publica un lote revisado por el equipo (solo admin).
-
-    Toma las decisiones de revisión guardadas en el servidor (nunca las que envía el cliente),
-    selecciona los activos aprobados de mayor relevancia, persiste el paquete en OCI Object
-    Storage con su auditoría y devuelve la salida oficial `RespuestaProcesamiento`. Después de
-    publicar, los activos del lote ya no se pueden cambiar.
+@router.post("/publish", response_model=RespuestaProcesamiento)
+def publish_to_oci(request: SolicitudPublicacion) -> RespuestaProcesamiento:
+    """Endpoint oficial del Hackathon:
+    Recibe el lote de interacciones, realiza el análisis de IA (o usa los ítems revisados),
+    selecciona los mejores activos de distribución, persiste el paquete en OCI Object Storage
+    (capa Always Free) y devuelve la salida oficial estructurada exigida por el documento del proyecto.
     """
     try:
-        return publicar_lote(request.lote_id, autor)
-    except KeyError as error:
-        raise HTTPException(status_code=404, detail=str(error).strip("'")) from error
-    except LoteNoPublicable as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
+        return publicar_lote_a_oci(request, items_procesados=request.items)
     except Exception as error:
         raise HTTPException(
             status_code=500,
@@ -45,7 +38,7 @@ def publish_to_oci(request: SolicitudPublicacion, autor: Autoria = Depends(autor
         ) from error
 
 
-@router.get("/packages", dependencies=[Depends(requiere_lector)])
+@router.get("/packages")
 def get_all_packages() -> dict[str, Any]:
     """Lista todos los paquetes de distribución oficiales persistidos en OCI bajo 'activos/'.
     Incluye por default el contenido JSON completo de cada paquete para consulta inmediata.
@@ -92,7 +85,7 @@ def get_all_packages() -> dict[str, Any]:
         ) from error
 
 
-@router.get("/packages/{periodo_referencia:path}", dependencies=[Depends(requiere_lector)])
+@router.get("/packages/{periodo_referencia:path}")
 def get_published_package(periodo_referencia: str) -> dict[str, Any]:
     """Recupera el paquete JSON almacenado en OCI Object Storage para un periodo o ruta dada."""
     if periodo_referencia.endswith(".json"):
@@ -120,7 +113,7 @@ def get_published_package(periodo_referencia: str) -> dict[str, Any]:
         ) from error
 
 
-@router.get("/status", dependencies=[Depends(requiere_lector)])
+@router.get("/status")
 def get_storage_status() -> dict[str, Any]:
     """Informa el estado de la configuración de OCI Object Storage."""
     return {

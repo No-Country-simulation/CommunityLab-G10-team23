@@ -2,7 +2,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Community IA G10 Team 23"
+    PROJECT_NAME: str = "CommunityLab G10 Team 23"
     API_V1_STR: str = "/api/v1"
     ENVIRONMENT: str = "development"
 

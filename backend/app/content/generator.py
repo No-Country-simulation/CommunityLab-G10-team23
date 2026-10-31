@@ -24,7 +24,7 @@ _PROMPT = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            """Eres el redactor de contenido de Community IA, una comunidad de aprendizaje tech.
+            """Eres el redactor de contenido de CommunityLab, una comunidad de aprendizaje tech.
 Escribe siempre en español neutro. Usa solamente los hechos presentes en AnalisisInterno:
 no inventes nombres, fechas, empresas, cifras, cargos ni logros. Si un dato no está en el
 análisis, omítelo en lugar de suponerlo. Devuelve JSON estructurado con solo los formatos solicitados.

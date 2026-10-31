@@ -1,6 +1,6 @@
 # Desarrollo y despliegue
 
-El proyecto está desplegado en OCI Always Free con dos instancias: el frontend en <http://138.2.245.128:3000/> y el backend en <http://164.152.246.126:8000/docs>. Este documento cubre el entorno local. La guía de despliegue en OCI está en [Guia_Despliegue_OCI.md](Guia_Despliegue_OCI.md) y el detalle de la infraestructura en [Documentacion_Equipo_D_y_Despliegue_OCI.md](Documentacion_Equipo_D_y_Despliegue_OCI.md).
+El proyecto está desplegado en OCI Always Free con dos instancias: el frontend en <http://138.2.245.128:3000/> y el backend en <http://164.152.246.126:8000/docs>. Este documento cubre el entorno local. La guía de despliegue en OCI está en el [README](../README.md#guía-de-despliegue-en-oci) y el detalle de la infraestructura en [Documentacion_Equipo_D_y_Despliegue_OCI.md](Documentacion_Equipo_D_y_Despliegue_OCI.md).
 
 ## Requisitos
 
@@ -24,15 +24,15 @@ Crea un `.env` en la raíz a partir de [`.env.example`](../.env.example):
 ## Levantar el proyecto
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build            # backend en :8000 y frontend en :3000
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build backend    # solo la API
+docker compose up --build            # backend en :8000 y frontend en :3000
+docker compose up --build backend    # solo la API
 ```
 
 - Aplicación web: `http://localhost:3000`
 - Salud: `GET http://localhost:8000/health`
 - Swagger UI: `http://localhost:8000/docs` · ReDoc: `http://localhost:8000/redoc`
 
-`docker-compose.dev.yml` monta el código (`./backend:/app`) y activa `--reload` en Uvicorn. Sin ese archivo, `docker compose up --build` levanta la configuración de producción (sin recarga automática, datos en un volumen). Detén los servicios con `Ctrl+C` y limpia los contenedores con `docker compose down`. Detener el backend descarta el avance de un lote en proceso, porque los trabajos viven en memoria.
+El volumen `./backend:/app` monta el código en el contenedor y Uvicorn usa `--reload`. Detén los servicios con `Ctrl+C` y limpia los contenedores con `docker compose down`. Detener el backend descarta el avance de un lote en proceso, porque los trabajos viven en memoria.
 
 **Almacenamiento en local:** sin credenciales de OCI, el backend guarda los paquetes en `backend/data/oci_mock/` con la misma estructura del bucket. Guardar cambios, el Historial y el dashboard funcionan igual. Los candidatos en revisión se guardan en `backend/data/activos_candidatos.json`. Ambos están fuera del control de versiones.
 
