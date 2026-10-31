@@ -48,6 +48,15 @@ def list_jobs(*, sin_publicar: bool = False) -> list[ResumenLote]:
     return repository.listar_lotes(sin_publicar=sin_publicar)
 
 
+def delete_job(job_id: str) -> bool:
+    """Elimina un lote terminado y sin publicar (ver repository.eliminar_lote).
+
+    No toma _run_lock: lo retiene el lote en proceso durante todo su análisis. Los lotes
+    en cola o en proceso ya se rechazan por su estado, y uno terminado no tiene hilo.
+    """
+    return repository.eliminar_lote(job_id)
+
+
 def _run(job_id: str, request: SolicitudProcesamiento) -> None:
     with _run_lock:
         repository.actualizar_estado(job_id, EstadoTrabajo.en_proceso)
@@ -59,4 +68,4 @@ def _run(job_id: str, request: SolicitudProcesamiento) -> None:
             repository.actualizar_estado(job_id, EstadoTrabajo.fallido, error=str(error))
 
 
-__all__ = ["start_job", "process_now", "get_job", "list_jobs"]
+__all__ = ["start_job", "process_now", "get_job", "list_jobs", "delete_job"]

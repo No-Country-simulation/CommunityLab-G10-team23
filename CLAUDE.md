@@ -105,6 +105,7 @@ Keep this external/internal distinction intact: the external request/response mo
 
 - Lots belong to the team, not to the uploader: any `revisor` can open any unpublished lot (`GET /pipeline/jobs?sin_publicar=true`) and approve or reject its candidates.
 - Changes are allowed only until the lot is published.
+- Admins can delete an unpublished, finished lot with `DELETE /pipeline/jobs/{id}`, which cascades to its items, candidates and review events. Lots that are processing or published return 409.
 - `app.db` (`APP_DB_PATH`, default `backend/data/app.db`) is separate from `auth.db`. It uses WAL mode with tables `lotes`, `items_lote`, `candidatos` and `eventos_revision`.
 - Authorship is stored as `usuario_id` plus a name snapshot, with no FK to users.
 - Schema changes go in as a new entry in `_MIGRACIONES` (tracked by `PRAGMA user_version`). Never edit an applied migration.

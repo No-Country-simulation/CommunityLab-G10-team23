@@ -2,7 +2,8 @@
   /* Botones píldora [figma:sidebar]: radio 70px, padding 10px × 30px (primario) / 15px (secundario). */
   .btn-primary,
   .btn-soft,
-  .btn-ghost {
+  .btn-ghost,
+  .btn-danger {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -26,6 +27,14 @@
   .btn-primary:active {
     background-image: var(--gradient-primary-active);
   }
+  /* Confirmación de una acción destructiva (eliminar), solo dentro de un aviso. */
+  .btn-danger {
+    background-color: var(--color-danger-solid);
+    color: var(--color-white);
+  }
+  .btn-danger:hover {
+    background-color: var(--color-danger-solid-hover);
+  }
   .btn-soft {
     background-color: var(--color-active);
     color: var(--color-ink-900);
@@ -43,7 +52,8 @@
   }
   .btn-primary:disabled,
   .btn-soft:disabled,
-  .btn-ghost:disabled {
+  .btn-ghost:disabled,
+  .btn-danger:disabled {
     background-image: none;
     background-color: var(--color-disabled);
     color: var(--color-disabled-text);

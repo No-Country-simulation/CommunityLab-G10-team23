@@ -240,3 +240,43 @@ def test_al_arrancar_los_lotes_a_medias_quedan_como_fallidos(lote):
     trabajo = repository.obtener_lote(lote["id"])
     assert trabajo.estado == EstadoTrabajo.fallido
     assert trabajo.procesadas == 1
+
+
+def test_admin_elimina_un_lote_sin_publicar_con_todo_su_contenido(lote):
+    como(HUGO)
+    client.patch(f"/api/v1/review/assets/{lote['post']}", json={"estado_aprobacion": "aprobado"})
+
+    como(ADMIN)
+    respuesta = client.delete(f"/api/v1/pipeline/jobs/{lote['id']}")
+
+    assert respuesta.status_code == 204
+    assert client.get(f"/api/v1/pipeline/jobs/{lote['id']}").status_code == 404
+    assert client.get("/api/v1/pipeline/jobs").json() == []
+    assert client.get("/api/v1/review/assets", params={"lote_id": lote["id"]}).json() == []
+    assert client.get(f"/api/v1/review/assets/{lote['post']}/historial").status_code == 404
+
+
+def test_un_revisor_no_puede_eliminar_lotes(lote):
+    como(PAULA)
+
+    assert client.delete(f"/api/v1/pipeline/jobs/{lote['id']}").status_code == 403
+    assert client.get(f"/api/v1/pipeline/jobs/{lote['id']}").status_code == 200
+
+
+def test_no_se_elimina_un_lote_publicado_ni_uno_en_proceso(lote, bucket):
+    como(ADMIN)
+    repository.actualizar_estado(lote["id"], EstadoTrabajo.en_proceso)
+    en_proceso = client.delete(f"/api/v1/pipeline/jobs/{lote['id']}")
+
+    repository.actualizar_estado(lote["id"], EstadoTrabajo.completado)
+    client.post("/api/v1/storage/publish", json={"lote_id": lote["id"]})
+    publicado = client.delete(f"/api/v1/pipeline/jobs/{lote['id']}")
+
+    assert (en_proceso.status_code, publicado.status_code) == (409, 409)
+    assert client.get(f"/api/v1/pipeline/jobs/{lote['id']}").status_code == 200
+
+
+def test_eliminar_un_lote_inexistente_responde_404():
+    como(ADMIN)
+
+    assert client.delete("/api/v1/pipeline/jobs/job_nada").status_code == 404

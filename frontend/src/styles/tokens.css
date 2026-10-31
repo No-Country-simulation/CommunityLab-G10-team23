@@ -64,6 +64,9 @@
   --color-danger-700: #ac172b;
   --color-danger-800: #86101f;
   --color-danger-900: #620914;
+  /* Fondo sólido con texto blanco (botón de eliminar): igual en ambos temas, contraste ≥ 4.5:1. */
+  --color-danger-solid: #d02a3a;
+  --color-danger-solid-hover: #ac172b;
 
   /* Pendiente / alerta */
   --color-warning-50: #fef7ee;

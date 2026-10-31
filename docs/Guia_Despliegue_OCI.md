@@ -18,6 +18,7 @@ Internet ──:3000──► VM frontend (VM.Standard.E2.1.Micro, Oracle Linux 
 
 - El navegador solo habla con el frontend. El frontend reenvía las llamadas `/api/*` al backend (patrón BFF), así que no hay problemas de CORS.
 - El backend analiza con Gemini y guarda los paquetes aprobados en Object Storage.
+- El trabajo en curso del equipo (cuentas, lotes, contenidos en revisión y quién decidió qué) vive en dos bases SQLite dentro del volumen `backend-data` de la VM backend. Ver [Lotes, revisión en equipo y datos](#lotes-revisión-en-equipo-y-datos).
 - Región documentada: `sa-vinhedo-1` (Brasil Este - Vinhedo).
 
 | Recurso | Nombre sugerido | Notas |
@@ -181,7 +182,7 @@ sudo firewall-cmd --permanent --add-port=3000/tcp && sudo firewall-cmd --reload
    docker compose exec -it backend python -m app.auth.crear_admin --email <tu-correo> --nombre "<tu nombre>"
    ```
 
-   El resto de las cuentas se crean por invitación desde la aplicación, en **Administración → Equipo** (también disponible en `/api/v1/usuarios/invitaciones`); no existe el registro abierto. Las cuentas viven en `auth.db`, dentro del volumen `backend-data`. Para hacer una copia de seguridad: `docker compose cp backend:/app/data/auth.db ./auth.db.bak`. Esa copia contiene los hashes de las contraseñas: guárdala fuera del repositorio.
+   El resto de las cuentas se crean por invitación desde la aplicación, en **Administración → Equipo** (también disponible en `/api/v1/usuarios/invitaciones`); no existe el registro abierto. Las cuentas viven en `auth.db`, dentro del volumen `backend-data`; las copias de seguridad se explican en [Copias de seguridad](#copias-de-seguridad).
 
 5. **Verificar.** Todo endpoint, salvo `/health` y el login, exige un token de sesión:
 
@@ -233,9 +234,12 @@ sudo firewall-cmd --permanent --add-port=3000/tcp && sudo firewall-cmd --reload
 ## Paso 8. Prueba de punta a punta
 
 1. Abre `http://<IP_PUBLICA_FRONTEND>:3000`: debe aparecer la portada de Community IA. Pulsa **Iniciar sesión**. Entra con el administrador del paso 6. En la barra lateral deben aparecer **Conectado** y tu nombre.
-2. Sube un archivo de prueba desde **Bandeja → Subir archivo** y espera el análisis.
-3. Aprueba o rechaza todo el contenido y pulsa **Guardar cambios**.
-4. Comprueba que en el bucket aparece `activos/paquete_N/paquete-distribucion.json` y que el paquete se ve en **Tabla de casos** y en **Dashboard**.
+2. Desde **Administración → Equipo**, invita a una cuenta con rol *Revisión* y regístrala en otra ventana privada.
+3. Con el admin, sube un archivo de prueba desde **Bandeja → Subir archivo** y espera el análisis.
+4. Con la cuenta de revisión, abre la bandeja: el lote aparece en **Lotes del equipo por revisar**. Ábrelo, aprueba un contenido y comprueba que muestra "Aprobado por <nombre>". Esa cuenta no ve el botón **Guardar lote**.
+5. Con el admin, vuelve a **Otros lotes**, abre el lote, revisa lo que falte y pulsa **Guardar lote**.
+6. Comprueba que en el bucket aparece `activos/paquete_N/paquete-distribucion.json`, que su bloque `auditoria` nombra a quien procesó, revisó y publicó, y que el paquete se ve en **Tabla de casos** y en **Dashboard**. El lote ya no aparece en la bandeja.
+7. Opcional: sube otro archivo y elimínalo desde el icono de papelera de su tarjeta (solo admin; pide confirmación).
 
 ## Paso 9. Operación
 
@@ -245,11 +249,96 @@ sudo firewall-cmd --permanent --add-port=3000/tcp && sudo firewall-cmd --reload
 | Ver estado | `docker compose ps` |
 | Ver logs | `docker compose logs -f backend` (o `frontend`) |
 | Reiniciar tras cambiar `.env` | `docker compose up -d --force-recreate backend` (o `frontend`) |
+| Copia de seguridad de las bases | Ver [Copias de seguridad](#copias-de-seguridad) |
+| Ver los lotes guardados | `docker compose exec backend python -c "import sqlite3; [print(*r) for r in sqlite3.connect('/app/data/app.db').execute('SELECT id, estado, creado_por_nombre, publicado_en FROM lotes ORDER BY creado_en DESC')]"` |
 | Liberar espacio de imágenes viejas | `docker image prune -f` |
 | Recompilar con imágenes base parcheadas (una vez al mes) | `docker compose build --pull backend && docker compose up -d backend` (o `frontend`) |
 | Comprobar que no hay secretos en el repositorio | `git grep -nE "PRIVATE KEY\|LS0tLS1CRUdJTi\|AIza"` (no debe devolver nada) |
 
 Los contenedores tienen `restart: unless-stopped`: vuelven a arrancar solos después de reiniciar la VM, siempre que Docker esté habilitado (`systemctl enable docker`, paso 5).
+
+## Lotes, revisión en equipo y datos
+
+### Ciclo de un lote
+
+```
+Subir archivo ──► Procesando ──► En revisión (equipo) ──► Publicado (admin) ──► Cerrado
+  (revisor)        (IA, en cola)   aprobar / rechazar        bucket de OCI        solo lectura
+                                          │
+                                          └──► Eliminado (admin, con confirmación)
+```
+
+1. **Subir.** Quien sube el archivo queda como autor del lote. El backend responde enseguida y procesa en segundo plano, un lote y un mensaje a la vez. Cada mensaje terminado se guarda de inmediato.
+2. **Revisar.** Los lotes son del equipo: cualquier cuenta con rol *Revisión* o *Administración* abre cualquier lote sin publicar desde **Lotes del equipo por revisar** y aprueba, rechaza o edita su contenido.
+   - Cada decisión queda firmada con quién la tomó y cuándo, y se agrega a un historial que no se modifica.
+   - Si dos personas cambian el mismo contenido a la vez, la segunda recibe un aviso con la versión de la primera en lugar de pisarla.
+3. **Publicar (solo admin).** **Guardar lote** toma las decisiones guardadas en el servidor y sube a OCI solo el contenido aprobado. El paquete incluye un bloque `auditoria` con quién procesó, revisó y publicó.
+   - Un lote publicado queda cerrado: su contenido ya no se puede cambiar ni el lote se puede eliminar.
+   - El historial definitivo es el bucket.
+4. **Eliminar (solo admin).** Borra un lote sin publicar con sus mensajes, contenidos e historial de revisión, después de una confirmación en pantalla.
+   - No se puede eliminar un lote que se está procesando ni uno publicado.
+   - El borrado no se puede deshacer, salvo restaurando una copia de seguridad.
+
+Quién puede hacer qué:
+
+| Acción | Solo lectura | Revisión | Administración |
+| :--- | :---: | :---: | :---: |
+| Ver Tabla de casos y Dashboard (bucket) | ✓ | ✓ | ✓ |
+| Subir archivos y revisar cualquier lote del equipo | | ✓ | ✓ |
+| Guardar un lote en OCI (publicar) | | | ✓ |
+| Eliminar un lote sin publicar | | | ✓ |
+| Invitar personas y gestionar el equipo | | | ✓ |
+
+### Dónde vive cada dato
+
+| Lugar | Contenido | Si se pierde |
+| :--- | :--- | :--- |
+| `auth.db` (volumen `backend-data`) | Cuentas, sesiones, invitaciones | Nadie puede entrar; hay que recrear el admin e invitar de nuevo |
+| `app.db` (volumen `backend-data`) | Lotes, mensajes analizados, contenidos en revisión, historial de decisiones | Se pierde el trabajo **sin publicar** y su historial de revisión |
+| Bucket de OCI | Paquetes publicados, con su `auditoria` | Se pierde el historial definitivo (no lo protege este volumen) |
+
+- `app.db` y `auth.db` son archivos SQLite. `app.db` usa el modo WAL, así que en la carpeta también aparecen `app.db-wal` y `app.db-shm`: forman parte de la base y **no se borran a mano**.
+- Al arrancar, el backend aplica solo las migraciones pendientes de `app.db` (`backend/app/persistence/db.py`). Actualizar la versión con `git pull && docker compose up -d --build backend` basta.
+- Si el backend se reinicia a mitad de un análisis, ese lote queda como interrumpido y conserva lo ya analizado. No hace falta intervenir: el equipo puede revisarlo o el admin eliminarlo.
+- El volumen vive en el disco de arranque de la VM backend: sobrevive a reinicios y reconstrucciones del contenedor, pero **no** a terminar la instancia ni a borrar su disco. Por eso las copias de seguridad.
+
+### Un solo proceso de backend
+
+El backend corre como un único proceso de Uvicorn (`backend/Dockerfile`), y debe seguir así. La cola de análisis, el candado que evita publicar dos veces el mismo lote y el límite de intentos de login viven en la memoria de ese proceso. No añadas `--workers` ni levantes réplicas del backend contra el mismo volumen. Para un equipo pequeño en una VM de 1 GB, un proceso con SQLite es suficiente.
+
+### Copias de seguridad
+
+Copia las dos bases con la función de respaldo de SQLite, que es segura con el backend en marcha. Copiar los archivos `.db` directamente puede dejar fuera los últimos cambios, que están en `-wal`:
+
+```bash
+cd ~/CommunityLab-G10-team23
+mkdir -p ~/respaldos && chmod 700 ~/respaldos
+docker compose exec -T backend python -c "
+import sqlite3
+for n in ('app', 'auth'):
+    s = sqlite3.connect(f'/app/data/{n}.db'); d = sqlite3.connect(f'/tmp/{n}.db.bak')
+    s.backup(d); d.close(); s.close()
+"
+F=$(date +%Y%m%d-%H%M)
+docker compose cp backend:/tmp/app.db.bak ~/respaldos/app-$F.db
+docker compose cp backend:/tmp/auth.db.bak ~/respaldos/auth-$F.db
+```
+
+- `auth-*.db` contiene los hashes de las contraseñas: guárdala fuera del repositorio y con permisos restringidos.
+- Lleva las copias fuera de la VM, por ejemplo a tu equipo con `scp`, o a un bucket aparte con `oci os object put`. Una copia que solo existe en la misma VM no sirve si se pierde la instancia.
+- Para automatizarla, guarda los comandos en `~/respaldar.sh` y prográmalo a diario con `crontab -e`, por ejemplo con `0 3 * * * /home/opc/respaldar.sh`. Borra las copias de más de 30 días con `find ~/respaldos -name '*.db' -mtime +30 -delete`.
+
+**Restaurar** (por ejemplo, después de recrear la VM o de eliminar un lote por error). Restaurar reemplaza la base completa: se pierde lo que se hizo después de la copia.
+
+```bash
+cd ~/CommunityLab-G10-team23
+docker compose stop backend
+docker compose run --rm --no-deps -v ~/respaldos:/restaurar:ro backend sh -c \
+  'cp /restaurar/app-AAAAMMDD-HHMM.db /app/data/app.db && rm -f /app/data/app.db-wal /app/data/app.db-shm'
+docker compose start backend
+```
+
+Para `auth.db` es igual, cambiando el nombre del archivo. Después de restaurar `auth.db`, las sesiones que había en la copia vuelven a ser válidas hasta que caduquen.
 
 ## Configuración de Docker Compose
 
@@ -259,7 +348,7 @@ Los contenedores tienen `restart: unless-stopped`: vuelven a arrancar solos desp
 | :--- | :--- |
 | `restart: unless-stopped` | Los servicios se recuperan tras un reinicio de la VM o una caída |
 | Backend sin `--reload` y sin montar el código | Modo producción: la imagen contiene el código y no se reinicia al tocar archivos |
-| Volumen `backend-data` en `/app/data` | Los candidatos en revisión y el almacenamiento local de respaldo sobreviven a reconstrucciones |
+| Volumen `backend-data` en `/app/data` | `auth.db`, `app.db` (lotes y revisión) y el almacenamiento local de respaldo sobreviven a reconstrucciones |
 | `.env` opcional (`required: false`) | Cada VM lleva solo lo que necesita: secretos en el backend, `BACKEND_URL` en el frontend |
 | `BACKEND_URL=${BACKEND_URL:-http://backend:8000}` | Se define en el `.env` del frontend; sin valor, apunta al backend del mismo compose |
 | `OCI_CONFIG_DIR` (por defecto `/home/opc/.oci`) | Carpeta de credenciales de OCI montada en solo lectura |
@@ -330,5 +419,5 @@ No se modificaron el backend ni los contratos de API; estos cambios necesitan ac
 
 1. **HTTPS (S5).** El acceso es por HTTP con IP. Opciones dentro de Always Free: un *Flexible Load Balancer* de 10 Mbps con certificado delante del frontend, o un proxy inverso (Caddy) en la VM del frontend con un dominio. Caddy obtiene el certificado de Let's Encrypt automáticamente. Con el proxy en marcha, define `COOKIE_SECURE=true` y `TRUST_PROXY=true` en el `.env` del frontend, cierra el 3000 a internet (que solo lo alcance el proxy) y abre el 443. Es requisito para abrir la aplicación al público ahora que hay contraseñas.
 2. El resto de los [cambios de código recomendados](#cambios-de-código-recomendados-no-aplicados).
-3. **Estado no durable.** Los trabajos en curso viven en la memoria del backend y se pierden al reiniciarlo; solo el paquete publicado en el bucket es definitivo.
+3. **Copias de seguridad fuera de la VM.** Los lotes y la revisión ya sobreviven a reinicios (están en `app.db`), pero solo en el disco de la VM backend. Programa las [copias de seguridad](#copias-de-seguridad) y llévalas fuera de la instancia antes de confiarle trabajo real.
 4. **Imágenes compiladas en las VM.** Compilar en máquinas de 1 GB es lento. Se puede compilar en otro equipo y publicar las imágenes en OCI Container Registry.

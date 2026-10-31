@@ -1,11 +1,12 @@
 """Endpoints that orchestrate Team A analysis, Team B classification and Team C generation."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
-from app.auth.dependencies import autor_actual
+from app.auth.dependencies import autor_actual, requiere_admin
 from app.contracts.models import Autoria, SolicitudProcesamiento
 from app.schemas.internal import ResultadoPipeline, ResumenLote, TrabajoPipeline
-from app.workflow.jobs import get_job, list_jobs, process_now, start_job
+from app.workflow.jobs import delete_job, get_job, list_jobs, process_now, start_job
+from app.workflow.repository import LoteNoEliminable
 
 
 router = APIRouter()
@@ -40,4 +41,23 @@ def read_pipeline_job(job_id: str, desde: int = Query(0, ge=0)) -> TrabajoPipeli
     return job
 
 
-__all__ = ["router", "process_pipeline", "create_pipeline_job", "list_pipeline_jobs", "read_pipeline_job"]
+@router.delete("/jobs/{job_id}", status_code=204, dependencies=[Depends(requiere_admin)])
+def delete_pipeline_job(job_id: str) -> Response:
+    """Elimina un lote sin publicar con todo su contenido e historial de revisión (solo admin)."""
+    try:
+        eliminado = delete_job(job_id)
+    except LoteNoEliminable as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    if not eliminado:
+        raise HTTPException(status_code=404, detail=f"No existe el trabajo {job_id}")
+    return Response(status_code=204)
+
+
+__all__ = [
+    "router",
+    "process_pipeline",
+    "create_pipeline_job",
+    "list_pipeline_jobs",
+    "read_pipeline_job",
+    "delete_pipeline_job",
+]

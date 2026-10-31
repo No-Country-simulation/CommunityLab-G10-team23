@@ -15,6 +15,10 @@ from app.schemas.internal import ResultadoPipelineItem, ResumenLote, TrabajoPipe
 _EN_CURSO = (EstadoTrabajo.en_cola.value, EstadoTrabajo.en_proceso.value)
 
 
+class LoteNoEliminable(Exception):
+    """El lote se está procesando o ya se publicó en la nube."""
+
+
 def _autoria(usuario_id: str | None, nombre: str | None, en: str | None) -> Autoria | None:
     if not usuario_id or not nombre or not en:
         return None
@@ -149,6 +153,26 @@ def marcar_publicado(lote_id: str, autor: Autoria, ruta_objeto: str) -> bool:
     return cambio.rowcount == 1
 
 
+def eliminar_lote(lote_id: str) -> bool:
+    """Borra un lote sin publicar con sus interacciones, candidatos e historial de revisión.
+
+    Devuelve False si no existe. Un lote en proceso no se borra (el hilo seguiría escribiendo
+    en él) ni uno publicado (su paquete ya está en el historial de la nube y su registro es la
+    auditoría de esa publicación).
+    """
+    with connect() as db:
+        row = db.execute("SELECT estado, publicado_en FROM lotes WHERE id = ?", (lote_id,)).fetchone()
+        if row is None:
+            return False
+        if row["publicado_en"]:
+            raise LoteNoEliminable("El lote ya se publicó en la nube; forma parte del historial y no se puede eliminar")
+        if row["estado"] in _EN_CURSO:
+            raise LoteNoEliminable("El lote todavía se está procesando; espera a que termine para eliminarlo")
+        # items_lote, candidatos y eventos_revision se borran en cascada (ON DELETE CASCADE).
+        db.execute("DELETE FROM lotes WHERE id = ?", (lote_id,))
+    return True
+
+
 def interrumpir_lotes_en_curso() -> int:
     """Al arrancar, ningún lote puede seguir procesándose: los hilos murieron con el proceso."""
     with connect() as db:
@@ -164,9 +188,11 @@ def interrumpir_lotes_en_curso() -> int:
 
 
 __all__ = [
+    "LoteNoEliminable",
     "actualizar_estado",
     "agregar_item",
     "crear_lote",
+    "eliminar_lote",
     "interrumpir_lotes_en_curso",
     "items_del_lote",
     "listar_lotes",

@@ -551,7 +551,7 @@ export default function ReviewApp({ usuario }: { usuario: Usuario | null }) {
               </button>
             </div>
           )}
-          {!isSubmitting && <TeamLots usuarioId={usuario?.id} onOpen={abrirLote} />}
+          {!isSubmitting && <TeamLots usuarioId={usuario?.id} isAdmin={isAdmin} onOpen={abrirLote} notify={notify} />}
         </main>
           ) : (
         <>

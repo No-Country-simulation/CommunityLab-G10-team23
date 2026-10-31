@@ -52,6 +52,7 @@ La revisión es del equipo: cualquier `revisor` puede abrir cualquier lote sin p
 
 - `GET /api/v1/pipeline/jobs?sin_publicar=true` devuelve `list[ResumenLote]`. Cada fila trae el lote, quién lo subió (`creado_por`) y cuántos activos están pendientes, aprobados y rechazados.
 - `GET /api/v1/pipeline/jobs/{id}?desde=n` devuelve `TrabajoPipeline` con `creado_por`, `publicado_por` y cada candidato con su última decisión.
+- `DELETE /api/v1/pipeline/jobs/{id}` (**solo admin**) responde `204` y borra el lote con sus interacciones, candidatos e historial. Responde `409` si el lote se está procesando o ya se publicó, y `404` si no existe.
 - `GET /api/v1/review/assets?lote_id=…` devuelve los `ActivoCandidato` guardados en `app.db`, con `lote_id` e `interaccion_id`.
 - `PATCH /api/v1/review/assets/{candidato_id}` acepta `{"estado_aprobacion", "contenido"?, "version"?}`. La respuesta es el candidato con `revisado_por` y `version` nuevos.
   - Responde `409` con `detail: {mensaje, actual}` si la `version` ya no es la vigente (otra persona lo cambió).

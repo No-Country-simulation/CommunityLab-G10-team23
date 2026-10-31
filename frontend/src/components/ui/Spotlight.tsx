@@ -6,8 +6,24 @@ import { useRef, type CSSProperties, type ReactNode } from "react";
 /** Los seis tonos de los pasos de la portada, en el mismo orden. */
 export const SPOT_TONES = ["#f9869d", "#81ecf8", "#a68bf9", "#f090f9", "#8bf877", "#fbc3b6"];
 
+// Las columnas dependen del ancho del contenedor (no de la ventana): dentro de la app la barra
+// lateral resta espacio. Con 3 columnas cada tarjeta mantiene al menos ~300px para el texto.
+const COLUMNS = {
+  2: "md:grid-cols-2",
+  3: "@xl:grid-cols-2 @4xl:grid-cols-3",
+};
+
 /** Cuadrícula que pasa la posición del puntero a todas sus tarjetas: el halo se derrama sobre las vecinas. */
-export function SpotlightGallery({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function SpotlightGallery({
+  children,
+  columns = 2,
+  className = "",
+}: {
+  children: ReactNode;
+  /** Máximo de tarjetas por fila; en pantallas angostas bajan a 2 y a 1. */
+  columns?: 2 | 3;
+  className?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const waiting = useRef(false);
 
@@ -23,8 +39,10 @@ export function SpotlightGallery({ children, className = "" }: { children: React
   };
 
   return (
-    <div ref={ref} onMouseMove={onMouseMove} className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${className}`}>
-      {children}
+    <div className="@container">
+      <div ref={ref} onMouseMove={onMouseMove} className={`grid grid-cols-1 gap-4 ${COLUMNS[columns]} ${className}`}>
+        {children}
+      </div>
     </div>
   );
 }

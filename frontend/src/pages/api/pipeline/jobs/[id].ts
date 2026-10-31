@@ -18,3 +18,19 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
     return json({ error: "Backend no alcanzable", detail: errorMessage(error) }, 502);
   }
 };
+
+// Elimina un lote sin publicar (solo admin; el backend lo valida y responde 403 si no).
+export const DELETE: APIRoute = async ({ params, locals }) => {
+  const id = params.id ?? "";
+
+  try {
+    const response = await backendFetch(locals.token, `/api/v1/pipeline/jobs/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) return backendError(response, "No se pudo eliminar el lote");
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    return json({ error: "Backend no alcanzable", detail: errorMessage(error) }, 502);
+  }
+};
