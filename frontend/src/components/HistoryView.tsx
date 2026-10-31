@@ -24,6 +24,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 import { copyToClipboard } from "@/lib/clipboard";
 import { CATEGORY_LABELS } from "@/lib/review";
 import { PageHeader } from "@/components/PageHeader";
@@ -206,7 +207,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
     setIsLoadingList(true);
     setListError(null);
     try {
-      const res = await fetch("/api/storage/packages");
+      const res = await apiFetch("/api/storage/packages");
       const json = await res.json().catch(() => null);
       if (res.ok && Array.isArray(json?.packages)) {
         setPackages(json.packages);
@@ -641,7 +642,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
       {activeView === "tabla" && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Nivel 1: estados (tarjetas resumen seleccionables) */}
-          <div className="bg-white px-4 sm:px-5 pb-4">
+          <div className="bg-surface px-4 sm:px-5 pb-4">
             <StatusCards
               active={statusFilter}
               onSelect={setStatusFilter}
@@ -666,7 +667,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
           </div>
 
           {/* Nivel 2: filtro por contenido (canal) */}
-          <div className="bg-white border-b border-ink-200 px-4 sm:px-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+          <div className="bg-surface border-b border-ink-200 px-4 sm:px-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
             <nav className="flex gap-1 overflow-x-auto -mb-px max-w-full" role="tablist" aria-label="Filtrar por canal">
               {[
                 { key: "todos", label: "Todos los Canales" },
@@ -719,7 +720,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                       setCustomEndDate(today);
                     }
                   }}
-                  className="text-xs border border-ink-300 rounded-lg px-2.5 py-1 bg-white text-ink-800 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                  className="text-xs border border-ink-300 rounded-lg px-2.5 py-1 bg-surface text-ink-800 font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
                 >
                   <option value="todas">Todas las fechas (Total)</option>
                   <option value="hoy">Hoy</option>
@@ -735,7 +736,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-white font-medium focus:ring-1 focus:ring-brand-500"
+                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-surface font-medium focus:ring-1 focus:ring-brand-500"
                       title="Fecha desde"
                     />
                     <span className="text-[11px] font-semibold text-ink-600 ml-1">Hasta:</span>
@@ -743,7 +744,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-white font-medium focus:ring-1 focus:ring-brand-500"
+                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-surface font-medium focus:ring-1 focus:ring-brand-500"
                       title="Fecha hasta"
                     />
                   </div>
@@ -761,7 +762,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                   id="cat-filter"
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="text-xs border border-ink-200 rounded-lg px-2 py-1 bg-white text-ink-700 font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer max-w-[130px] truncate"
+                  className="text-xs border border-ink-200 rounded-lg px-2 py-1 bg-surface text-ink-700 font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer max-w-[130px] truncate"
                 >
                   <option value="todas">Todas</option>
                   {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
@@ -781,7 +782,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                   id="sent-filter"
                   value={sentimentFilter}
                   onChange={(e) => setSentimentFilter(e.target.value)}
-                  className="text-xs border border-ink-200 rounded-lg px-2 py-1 bg-white text-ink-700 font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
+                  className="text-xs border border-ink-200 rounded-lg px-2 py-1 bg-surface text-ink-700 font-medium focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
                 >
                   <option value="todos">Todos</option>
                   <option value="positivo">Positivo</option>
@@ -811,7 +812,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Buscar autor, canal, #tema…"
-                className="text-xs pl-8 pr-7 py-1.5 w-60 rounded-lg border border-ink-200 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white"
+                className="text-xs pl-8 pr-7 py-1.5 w-60 rounded-lg border border-ink-200 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-surface"
               />
               {searchQuery && (
                 <button
@@ -827,7 +828,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
           {/* TABLA DE CONTENIDO */}
           <div className="flex-1 overflow-auto p-6 bg-ink-50">
             {listError && packages.length === 0 ? (
-              <div role="alert" className="bg-white rounded-xl border border-danger-200 p-12 text-center max-w-md mx-auto my-8 shadow-xs">
+              <div role="alert" className="bg-surface rounded-xl border border-danger-200 p-12 text-center max-w-md mx-auto my-8 shadow-xs">
                 <Cloud className="w-10 h-10 text-danger-400 mx-auto mb-3" />
                 <h3 className="text-sm font-bold text-ink-800 mb-1">No se pudo cargar el historial</h3>
                 <p className="text-xs text-ink-500 mb-4">
@@ -842,7 +843,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                 </button>
               </div>
             ) : sortedCases.length === 0 ? (
-              <div className="bg-white rounded-xl border border-ink-200 p-12 text-center max-w-md mx-auto my-8 shadow-xs">
+              <div className="bg-surface rounded-xl border border-ink-200 p-12 text-center max-w-md mx-auto my-8 shadow-xs">
                 <Cloud className="w-10 h-10 text-ink-300 mx-auto mb-3" />
                 <h3 className="text-sm font-bold text-ink-800 mb-1">No se encontraron casos</h3>
                 <p className="text-xs text-ink-500 mb-4">
@@ -858,7 +859,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                 )}
               </div>
             ) : (
-              <div className="bg-white border border-ink-200 rounded-xl overflow-hidden shadow-xs flex flex-col">
+              <div className="bg-surface border border-ink-200 rounded-xl overflow-hidden shadow-xs flex flex-col">
                 <div className="overflow-x-auto">
                   <table className="data-table w-full text-left text-xs text-ink-700">
                     <thead className="select-none">
@@ -1085,7 +1086,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                 </div>
 
                 {/* 3. PAGINADOR EN EL PIE DE LA TABLA */}
-                <div className="bg-white border-t border-ink-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 text-xs text-ink-600 shadow-2xs">
+                <div className="bg-surface border-t border-ink-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 text-xs text-ink-600 shadow-2xs">
                   <div className="flex items-center gap-2">
                     <span>
                       Mostrando{" "}
@@ -1151,7 +1152,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                       <select
                         value={pageSize}
                         onChange={(e) => setPageSize(Number(e.target.value))}
-                        className="border border-ink-200 rounded-lg px-2 py-1 bg-white text-ink-700 font-semibold focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
+                        className="border border-ink-200 rounded-lg px-2 py-1 bg-surface text-ink-700 font-semibold focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer"
                       >
                         <option value={10}>10</option>
                         <option value={15}>15</option>
@@ -1170,11 +1171,11 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
 
       {/* 3. VISTA: DASHBOARD DE COMUNIDAD — gráficos basados en Smart Charts Kit */}
       {activeView === "dashboard" && (
-        <div className="flex-1 overflow-y-auto px-4 sm:px-5 pb-8 pt-2 space-y-5 bg-white">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-5 pb-8 pt-2 space-y-5 bg-surface">
           {/* Selector de alcance temporal dentro del dashboard */}
           <div className="chart-card px-5 py-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
                 <label htmlFor="dash-date-select" className="text-xs font-bold text-ink-700 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-brand-600" />
                   Período analizado:
@@ -1191,7 +1192,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                       setCustomEndDate(today);
                     }
                   }}
-                  className="max-w-full text-sm border border-[rgb(4_1_16/0.1)] rounded-full px-3.5 py-2 bg-white text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                  className="w-full sm:w-auto max-w-full text-sm border border-hairline rounded-full px-3.5 py-2 bg-surface text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
                 >
                   <option value="todas">Todas las fechas (Consolidado completo)</option>
                   <option value="hoy">Hoy</option>
@@ -1207,7 +1208,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                       type="date"
                       value={customStartDate}
                       onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-white font-medium focus:ring-1 focus:ring-brand-500"
+                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-surface font-medium focus:ring-1 focus:ring-brand-500"
                       title="Fecha desde"
                     />
                     <span className="text-[11px] font-semibold text-ink-600 ml-1">Hasta:</span>
@@ -1215,7 +1216,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                       type="date"
                       value={customEndDate}
                       onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-white font-medium focus:ring-1 focus:ring-brand-500"
+                      className="border border-ink-300 rounded px-1.5 py-0.5 text-xs text-ink-800 bg-surface font-medium focus:ring-1 focus:ring-brand-500"
                       title="Fecha hasta"
                     />
                   </div>
@@ -1231,7 +1232,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
           {/* Métricas principales: total de interacciones (destacado) y estado de los activos */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             <section
-              className="lg:col-span-4 rounded-2xl p-6 text-white flex flex-col justify-between gap-6 shadow-[0_5px_25px_rgb(0_0_0/0.1)]"
+              className="lg:col-span-4 rounded-2xl p-6 text-white flex flex-col justify-between gap-6 shadow-(--shadow-card)"
               style={{ backgroundImage: "var(--gradient-secondary)" }}
             >
               <div>
@@ -1367,7 +1368,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                   {wordCloudData.list.map(([term, freq]) => {
                     const ratio = wordCloudData.maxWeight > 1 ? freq / wordCloudData.maxWeight : 1;
                     const isSelected = selectedCloudWord === term;
-                    let badgeStyle = "text-xs font-medium text-ink-700 bg-white border-ink-200 hover:border-ink-300";
+                    let badgeStyle = "text-xs font-medium text-ink-700 bg-surface border-ink-200 hover:border-ink-300";
                     if (ratio >= 0.75) {
                       badgeStyle = "text-sm sm:text-base font-bold text-brand-700 bg-brand-50 border-brand-200 hover:bg-brand-100 shadow-2xs";
                     } else if (ratio >= 0.45) {
@@ -1388,7 +1389,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                         title={`#${term}: ${freq} mención(es)`}
                       >
                         <span>#{term}</span>
-                        <span className={`text-[10px] font-mono ${isSelected ? "text-brand-100" : "opacity-60"}`}>
+                        <span className={`text-[10px] font-mono ${isSelected ? "text-white/80" : "opacity-60"}`}>
                           ({freq})
                         </span>
                       </button>
@@ -1457,7 +1458,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                   aria-selected={inspectTab === key}
                   onClick={() => setInspectTab(key)}
                   className={`text-xs px-3 py-1 rounded-md font-semibold transition cursor-pointer flex items-center gap-1 ${
-                    inspectTab === key ? "bg-white text-brand-700 shadow-2xs" : "text-ink-600 hover:text-ink-900"
+                    inspectTab === key ? "bg-surface text-brand-700 shadow-2xs" : "text-ink-600 hover:text-ink-900"
                   }`}
                 >
                   {icon}
@@ -1673,7 +1674,7 @@ export function HistoryView({ view: activeView, onViewChange: setActiveView }: H
                     {copiedCaseJson ? "¡Copiado!" : "Copiar JSON"}
                   </button>
                 </div>
-                <pre className="p-4 bg-ink-900 text-ink-100 rounded-xl text-xs font-mono overflow-x-auto max-h-[480px] leading-relaxed">
+                <pre className="p-4 bg-chrome text-chrome-text rounded-xl text-xs font-mono overflow-x-auto max-h-[480px] leading-relaxed">
                   {JSON.stringify(inspectCase, null, 2)}
                 </pre>
               </div>

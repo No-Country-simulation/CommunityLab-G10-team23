@@ -1,4 +1,4 @@
-# CommunityLab · Grupo 10 · Equipo 23
+# Community IA · Grupo 10 · Equipo 23
 
 ## Integrantes
 
@@ -54,7 +54,7 @@ Las empresas y agencias que gestionan comunidades digitales (en plataformas como
 El alto volumen de datos e interacciones que se generan de forma orgánica en las comunidades hace que la revisión manual sea insostenible. Esto genera un alto riesgo de dejar pasar contenido valioso, como historias de éxito o testimonios de usuarios, debido a la fatiga operativa y la pesada carga de trabajo que implica evaluar cada interacción una por una.
 
 ## Solución propuesta
-La solución propuesta se enmarca en CommunityLab, un motor inteligente impulsado por Inteligencia Artificial (Grandes Modelos de Lenguaje como Google Gemini) diseñado para automatizar la transformación de comunidades digitales. El sistema permite cargar un archivo JSON con las interacciones de la comunidad para que la IA analice, procese y extraiga métricas objetivas de cada mensaje (sentimiento, categoría, relevancia y resúmenes), convirtiéndolos automáticamente en activos de marketing listos para publicar en LinkedIn o Newsletters e incluso registros FAQ.
+La solución propuesta se enmarca en Community IA, un motor inteligente impulsado por Inteligencia Artificial (Grandes Modelos de Lenguaje como Google Gemini) diseñado para automatizar la transformación de comunidades digitales. El sistema permite cargar un archivo JSON con las interacciones de la comunidad para que la IA analice, procese y extraiga métricas objetivas de cada mensaje (sentimiento, categoría, relevancia y resúmenes), convirtiéndolos automáticamente en activos de marketing listos para publicar en LinkedIn o Newsletters e incluso registros FAQ.
 
 ### Arquitectura del sistema
 <img width="80%" alt="image" src="https://github.com/user-attachments/assets/33a155ed-b514-414f-9bd0-a1606d5fadc7" />
@@ -82,7 +82,7 @@ Para garantizar un flujo de trabajo ágil, seguro y con supervisión humana, el 
 
 # Especificaciones técnicas
 
-CommunityLab convierte las conversaciones de una comunidad de aprendizaje (Discord, CSV, formularios, GitHub) en **activos de comunicación listos para publicar**: posts de LinkedIn, destacados para el newsletter semanal y sugerencias de FAQ. Agentes con LLM (Google Gemini) analizan, clasifican y redactan; una persona revisa y aprueba cada pieza, y el paquete final se guarda en **OCI Object Storage**.
+Community IA convierte las conversaciones de una comunidad de aprendizaje (Discord, CSV, formularios, GitHub) en **activos de comunicación listos para publicar**: posts de LinkedIn, destacados para el newsletter semanal y sugerencias de FAQ. Agentes con LLM (Google Gemini) analizan, clasifican y redactan; una persona revisa y aprueba cada pieza, y el paquete final se guarda en **OCI Object Storage**.
 
 **Demo en vivo (OCI Always Free)**
 
@@ -95,7 +95,7 @@ CommunityLab convierte las conversaciones de una comunidad de aprendizaje (Disco
 
 ## Pipeline completo
 
-![Pipeline completo de CommunityLab](docs/diagram.svg)
+![Pipeline completo de Community IA](docs/diagram.svg)
 
 > Diagrama BPMN editable: [docs/FlujoCommunityLab.bpmn](docs/FlujoCommunityLab.bpmn) (se abre en <https://demo.bpmn.io> o Camunda Modeler).
 > En el diagrama, **✦ LLM** marca las decisiones que toma un modelo, ⚙ las tareas de sistema, 📋 las reglas deterministas y 👤 las decisiones humanas.
@@ -117,7 +117,7 @@ Monolito modular: las fases del pipeline son módulos de un único backend, no m
 
 | Capa | Tecnología |
 | --- | --- |
-| Frontend | Next.js 15 (bandeja HITL, historial, dashboard) con rutas BFF `/api/*` que actúan de proxy hacia la API |
+| Frontend | Astro 7 + React (bandeja HITL, historial, dashboard) con rutas BFF `/api/*` que actúan de proxy hacia la API |
 | Backend | FastAPI + Pydantic v2, LangChain + LangGraph |
 | LLM | Google Gemini vía `langchain-google-genai` (recomendado `gemini-3.5-flash-lite`) |
 | Persistencia | OCI Object Storage (Capacidad HDD 20GB); JSON local para candidatos en revisión |
@@ -140,79 +140,19 @@ docker compose up --build     # backend en :8000 y frontend en :3000
 
 ## Guía de despliegue en OCI
 
-Arquitectura de dos capas: una VM para el frontend (puerto 3000), otra para el backend (puerto 8000) y un bucket de Object Storage.
+Arquitectura de dos capas en OCI Always Free: una VM para el frontend (puerto 3000), otra para el backend (puerto 8000) y un bucket de Object Storage. El paso a paso completo (compartimento, permisos, red, bucket, instancias, backend, frontend, verificación y operación) está en **[docs/Guia_Despliegue_OCI.md](docs/Guia_Despliegue_OCI.md)**.
 
-### 1. Preparar OCI (una sola vez)
-
-1. Crea el bucket (por defecto `communitylab-activos-marketing`).
-2. Crea dos instancias `VM.Standard.E2.1.Micro` con Oracle Linux 9.
-3. En la **Security List** de la VCN, agrega reglas de ingreso TCP desde `0.0.0.0/0`: puerto `3000` para el frontend y `8000` para el backend.
-4. En tu usuario (Perfil → API Keys → Add API Key) genera una clave y descarga la clave privada (`.pem`) y el fragmento de configuración.
-
-### 2. Preparar cada VM
+Resumen de comandos, una vez preparada cada VM:
 
 ```bash
-# Docker, Compose y Git
-sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin git
-sudo systemctl enable --now docker && sudo usermod -aG docker opc   # vuelve a iniciar sesión
+# VM backend (.env con GEMINI_API_KEY y credenciales de OCI en ~/.oci o instance principals)
+docker compose up -d --build backend
 
-# Swap de 4 GiB: con 1 GB de RAM, el build de Next.js y LangGraph agotan la memoria
-sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
-sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
-echo "/swapfile swap swap defaults 0 0" | sudo tee -a /etc/fstab
-
-# Firewall del sistema: 8000 en la VM del backend, 3000 en la del frontend
-sudo firewall-cmd --permanent --add-port=8000/tcp && sudo firewall-cmd --reload
-
-git clone <url-del-repositorio> ~/CommunityLab-G10-team23
-```
-
-### 3. Backend
-
-1. Copia las credenciales de OCI a la VM. **Nunca las subas al repositorio.**
-
-   ```bash
-   ssh opc@<IP_BACKEND> "mkdir -p ~/.oci"
-   scp oci_api_key.pem config opc@<IP_BACKEND>:~/.oci/
-   ssh opc@<IP_BACKEND> "chmod 600 ~/.oci/*"
-   ```
-
-   En `~/.oci/config`, `key_file` debe apuntar a `/home/opc/.oci/oci_api_key.pem`. Compose monta esa carpeta en el contenedor en modo solo lectura.
-2. Crea `~/CommunityLab-G10-team23/.env` con `GEMINI_API_KEY` y `GEMINI_MODEL`. Opcionalmente agrega `OCI_BUCKET_NAME`, `OCI_NAMESPACE` y `OCI_REGION` si usas valores distintos de los predeterminados.
-3. Levanta y verifica:
-
-   ```bash
-   docker compose up -d --build backend
-   curl http://localhost:8000/health
-   curl http://localhost:8000/api/v1/storage/packages   # fuerza la conexión con OCI
-   docker compose logs backend | grep "OCI Storage"     # debe decir "Conectado exitosamente"
-   ```
-
-   El cliente de OCI se crea en la primera operación de almacenamiento; por eso la verificación lista los paquetes antes de revisar el log. Si el log dice `Usando almacenamiento Mock local`, el backend no encontró las credenciales y está guardando los paquetes en disco, no en OCI.
-
-### 4. Frontend
-
-En la VM del frontend, apunta el proxy BFF al backend con un `docker-compose.override.yml` en la raíz del repositorio:
-
-```yaml
-services:
-  frontend:
-    environment:
-      - BACKEND_URL=http://<IP_BACKEND>:8000
-```
-
-```bash
+# VM frontend (.env con BACKEND_URL=http://<IP_PRIVADA_BACKEND>:8000)
 docker compose up -d --build frontend
-```
 
-Abre `http://<IP_FRONTEND>:3000`. El navegador solo habla con el frontend, que reenvía las llamadas `/api/*` al backend; así se evitan problemas de CORS.
-
-### 5. Actualizar una versión
-
-```bash
-cd ~/CommunityLab-G10-team23 && git pull
-docker compose up -d --build backend    # o frontend, según la VM
+# Actualizar una versión
+cd ~/CommunityLab-G10-team23 && git pull && docker compose up -d --build backend   # o frontend
 ```
 
 ## API
@@ -269,7 +209,7 @@ backend/app/
   storage/        Equipo D: ensamblado del paquete y cliente de OCI Object Storage
   contracts/      Modelos Pydantic y enums compartidos (contrato externo e interno)
 backend/tests/    Pruebas por módulo
-frontend/         Next.js: bandeja HITL, historial, dashboard y proxy BFF
+frontend/         Astro + React: bandeja HITL, historial, dashboard y proxy BFF
 docs/             Arquitectura, contratos, diagramas y documentación por equipo
 schemas/          Ejemplos JSON de entrada y salida
 ```

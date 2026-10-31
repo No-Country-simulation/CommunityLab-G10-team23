@@ -140,7 +140,7 @@ export function ReviewTable({ rows, mode, savingId, selectedKey, onOpen, onSetSt
           ref={menuRef}
           role="menu"
           style={{ top: menu.top, left: Math.max(8, menu.left) }}
-          className="fixed z-40 w-48 bg-white rounded-lg shadow-xl ring-1 ring-ink-200 py-1 text-sm"
+          className="fixed z-40 w-48 bg-surface rounded-lg shadow-xl ring-1 ring-ink-200 py-1 text-sm"
         >
           <MenuItem
             icon={<Eye className="w-4 h-4" />}

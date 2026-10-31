@@ -1,9 +1,13 @@
 import type { APIRoute } from "astro";
 import type { SolicitudProcesamiento } from "@/types/backend";
-import { backendUrl, errorMessage, json } from "@/lib/bff";
+import { backendError, backendFetch, errorMessage, isDemo, json } from "@/lib/bff";
 
 // Publica el lote consolidado en OCI Object Storage a través del backend (Equipo D).
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
+  if (isDemo()) {
+    return json({ error: "En modo demostración los cambios no se guardan en OCI" }, 409);
+  }
+
   let body: SolicitudProcesamiento;
   try {
     body = await request.json();
@@ -12,21 +16,14 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   try {
-    const response = await fetch(`${backendUrl()}/api/v1/storage/publish`, {
+    const response = await backendFetch(locals.token, "/api/v1/storage/publish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      cache: "no-store",
       signal: AbortSignal.timeout(180000),
     });
-
-    const data = await response.json().catch(() => null);
-
-    if (response.ok) {
-      return json({ source: "fastapi", data });
-    }
-
-    return json({ error: "Error al publicar en OCI", detail: data?.detail ?? data }, response.status);
+    if (!response.ok) return backendError(response, "Error al publicar en OCI");
+    return json({ source: "fastapi", data: await response.json() });
   } catch (error) {
     return json(
       { error: "No se pudo conectar con el backend de almacenamiento", detail: errorMessage(error) },

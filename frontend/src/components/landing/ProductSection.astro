@@ -1,0 +1,185 @@
+---
+/*
+ * Qué es Community IA y cómo funciona. Los pasos describen el pipeline real del repositorio
+ * (ingesta → análisis → clasificación y relevancia → generación → revisión humana → historial);
+ * no se anuncian capacidades que no existan.
+ *
+ * Patrones [ref] de Dong: titular de recuento grande como "Total 19 posts", tarjetas spotlight
+ * con ficha de icono (aquí a la izquierda del texto) y fila de metadatos (fecha a la izquierda; "@categoría" y
+ * "#etiquetas" a la derecha, al 60% de opacidad). Los colores de las tarjetas son tonos que usa
+ * el sitio publicado de Dong.
+ */
+import { FileJson, History, PenLine, ScanSearch, Tags, UserCheck } from "lucide-react";
+import SpotlightCard from "@/components/landing/SpotlightCard.astro";
+import SpotlightGallery from "@/components/landing/SpotlightGallery.astro";
+
+const steps = [
+  {
+    icon: FileJson,
+    tone: "#f9869d",
+    title: "Sube las conversaciones",
+    text: "Un archivo con el autor, el canal y el texto de cada mensaje, hasta 500 por vez. Ves el avance mensaje a mensaje, sin esperar a que termine todo el lote.",
+    actor: "Tu equipo",
+    tags: ["archivo JSON"],
+  },
+  {
+    icon: ScanSearch,
+    tone: "#81ecf8",
+    title: "La IA lee cada mensaje",
+    text: "Identifica el sentimiento, los temas, las personas o herramientas que se mencionan y qué intenta la persona: compartir un logro, preguntar, pedir ayuda.",
+    actor: "IA",
+    tags: ["sentimiento", "temas"],
+  },
+  {
+    icon: Tags,
+    tone: "#a68bf9",
+    title: "Clasifica y mide la relevancia",
+    text: "Ubica el mensaje en una categoría, como historia de éxito, pregunta frecuente o alerta de soporte, y le da una puntuación de 0 a 100. Lo que no aporta queda descartado.",
+    actor: "IA",
+    tags: ["categoría", "relevancia"],
+  },
+  {
+    icon: PenLine,
+    tone: "#f090f9",
+    title: "Prepara los borradores",
+    text: "Para cada mensaje relevante escribe dos formatos según su categoría: un post de LinkedIn, un destacado para el newsletter o una sugerencia para las preguntas frecuentes.",
+    actor: "IA",
+    tags: ["LinkedIn", "newsletter", "FAQ"],
+  },
+  {
+    icon: UserCheck,
+    tone: "#8bf877",
+    title: "Tu equipo revisa",
+    text: "Cada borrador aparece junto al mensaje original. Lo editas si hace falta y lo apruebas o lo rechazas. El lote no se guarda mientras quede algo pendiente.",
+    actor: "Tu equipo",
+    tags: ["aprobar", "rechazar"],
+  },
+  {
+    icon: History,
+    tone: "#fbc3b6",
+    title: "Queda en el historial",
+    text: "Los lotes revisados se guardan en la nube. La tabla de casos y el dashboard muestran qué se aprobó, qué se rechazó y de qué canal vino cada caso.",
+    actor: "Tu equipo",
+    tags: ["historial", "dashboard"],
+  },
+];
+
+const results = [
+  {
+    title: "Empiezas por lo que importa",
+    text: "Los mensajes ya llegan analizados y clasificados, con su relevancia. No hace falta leer todo el canal para encontrar la historia que vale la pena contar.",
+  },
+  {
+    title: "Editas un borrador, no una hoja en blanco",
+    text: "Cada propuesta trae el texto listo para corregir y el mensaje que la originó al lado, para comprobar que dice lo que la persona quiso decir.",
+  },
+  {
+    title: "Cada decisión queda a la vista",
+    text: "El historial guarda qué se aprobó y qué se rechazó en cada lote, para que cualquiera del equipo lo consulte después.",
+  },
+  {
+    title: "Cada persona ve lo que necesita",
+    text: "Quien administra invita al equipo; quien revisa aprueba contenido; quien solo consulta ve el historial y el dashboard.",
+  },
+];
+---
+
+<section id="producto" class="landing-anchor text-landing-ink">
+  <div class="mx-auto max-w-6xl px-6 py-20 md:py-28 grid gap-12 md:grid-cols-[1.15fr_1fr] md:gap-16 items-start">
+    <h2 class="text-3xl md:text-5xl font-bold tracking-tight leading-[1.15]">
+      Una comunidad activa habla más de lo que un equipo alcanza a leer.
+    </h2>
+    <div class="flex flex-col gap-8 text-base md:text-lg leading-relaxed">
+      <div class="flex flex-col gap-2">
+        <h3 class="text-lg md:text-xl font-semibold">El problema</h3>
+        <p class="opacity-80">
+          En los canales de una comunidad se mezclan logros, dudas que se repiten y pedidos de ayuda. Encontrar ahí lo
+          que merece contarse y convertirlo en una publicación lleva horas de lectura que casi nunca hay.
+        </p>
+      </div>
+      <div class="flex flex-col gap-2">
+        <h3 class="text-lg md:text-xl font-semibold">Lo que hace Community IA</h3>
+        <p class="opacity-80">
+          Lee cada mensaje, señala los que valen la pena y prepara un primer borrador. Tu equipo se queda con la parte
+          que no se puede delegar: decidir qué se publica y cómo.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="como-funciona" class="landing-anchor text-landing-ink" aria-labelledby="flujo-titulo">
+  <div class="mx-auto max-w-6xl px-6 pb-20 md:pb-28">
+    <div class="flex flex-col gap-3 mb-16 md:text-center">
+      <h2 id="flujo-titulo" class="text-3xl md:text-5xl font-bold tracking-tight">Seis pasos, del mensaje al historial</h2>
+      <p class="text-base md:text-lg opacity-80 max-w-[58ch] md:mx-auto">
+        La IA hace la lectura y el primer borrador. Las decisiones las toma tu equipo.
+      </p>
+    </div>
+
+    <SpotlightGallery>
+      {
+        steps.map(({ icon: Icon, tone, title, text, actor, tags }, index) => (
+          <SpotlightCard tone={tone}>
+            <span slot="icon" class="contents">
+              <Icon className="w-8 h-8" strokeWidth={1.75} />
+            </span>
+            <article class="flex h-full flex-col justify-between gap-8">
+              <div>
+                <h3 class="mb-4 text-lg font-medium">{title}</h3>
+                <p class="leading-relaxed opacity-90">{text}</p>
+              </div>
+              <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
+                <span class="opacity-60">Paso {index + 1}</span>
+                <span class="flex flex-wrap gap-x-4">
+                  <span class="meta">
+                    <span>@</span>
+                    {actor}
+                  </span>
+                  {tags.map((tag) => (
+                    <span class="meta">
+                      <span>#</span>
+                      {tag}
+                    </span>
+                  ))}
+                </span>
+              </div>
+            </article>
+          </SpotlightCard>
+        ))
+      }
+    </SpotlightGallery>
+  </div>
+</section>
+
+<section class="text-landing-ink" aria-labelledby="resultado-titulo">
+  <div class="mx-auto max-w-6xl px-6 pb-20 md:pb-28">
+    <h2 id="resultado-titulo" class="text-3xl md:text-5xl font-bold tracking-tight mb-10 md:mb-14">Lo que gana tu equipo</h2>
+    <ul class="results">
+      {
+        results.map(({ title, text }) => (
+          <li class="grid gap-2 py-6 md:grid-cols-[minmax(0,22rem)_1fr] md:gap-12">
+            <h3 class="text-lg md:text-xl font-semibold">{title}</h3>
+            <p class="text-base md:text-lg leading-relaxed opacity-80 max-w-[62ch]">{text}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .meta {
+    display: inline-flex;
+    gap: 0.25rem;
+    opacity: 0.6;
+    transition: opacity 150ms;
+    white-space: nowrap;
+  }
+  article:hover .meta {
+    opacity: 1;
+  }
+  .results > li + li {
+    border-top: 1px solid color-mix(in srgb, var(--color-landing-ink) 12%, transparent);
+  }
+</style>

@@ -23,4 +23,7 @@ ENV HOST=0.0.0.0
 ENV PORT=3000
 EXPOSE 3000
 
+# Usuario sin privilegios incluido en la imagen oficial de Node
+USER node
+
 CMD ["node", "./dist/server/entry.mjs"]

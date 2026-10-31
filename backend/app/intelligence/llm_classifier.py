@@ -20,7 +20,7 @@ _PROMPT = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            """Eres el clasificador de CommunityLab.
+            """Eres el clasificador de Community IA.
 Analiza el objeto AnalisisInterno y elige exactamente una categoria de esta lista:
 {categories}
 

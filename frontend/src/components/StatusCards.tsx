@@ -68,7 +68,7 @@ export function StatusCards<K extends StatusCardKey>({ cards, active, onSelect }
             onClick={() => onSelect(card.key)}
             aria-pressed={selected}
             className={`relative text-left rounded-2xl border-2 p-4 transition cursor-pointer flex flex-col gap-3 ${
-              selected ? st.active : "border-ink-200 bg-white hover:border-ink-300 hover:shadow-[0_5px_25px_rgb(0_0_0/0.06)]"
+              selected ? st.active : "border-ink-200 bg-surface hover:border-ink-300 hover:shadow-[0_5px_25px_rgb(0_0_0/0.06)]"
             }`}
           >
             {selected && (

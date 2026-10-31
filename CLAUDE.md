@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-CommunityLab (Grupo 10, Equipo 23) converts community-interaction data (Discord, CSV, forms, GitHub) into structured analysis and, eventually, human-reviewed content assets (LinkedIn posts, newsletter highlights, FAQ suggestions). It is built as a **modular monolith**: a single FastAPI backend contains the pipeline phases as Python modules/routers, not separate microservices. Four conceptual "teams" (A–D) own successive phases of one pipeline:
+Community IA (Grupo 10, Equipo 23) converts community-interaction data (Discord, CSV, forms, GitHub) into structured analysis and, eventually, human-reviewed content assets (LinkedIn posts, newsletter highlights, FAQ suggestions). It is built as a **modular monolith**: a single FastAPI backend contains the pipeline phases as Python modules/routers, not separate microservices. Four conceptual "teams" (A–D) own successive phases of one pipeline:
 
 - **Team A** — ingestion, validation, per-interaction LLM analysis (`app/ai`, `app/api/v1/ingestion.py`).
 - **Team B** — classification, relevance scoring, routing (`app/intelligence`, `app/workflow/classification_graph.py`).
 - **Team C** — content generation and human-in-the-loop (HITL) review (`app/content`, `app/api/v1/review.py`).
 - **Team D** — final package assembly and OCI Object Storage persistence (planned; `armar_respuesta_externa` in `app/contracts/models.py` is the only piece implemented so far).
 
-Only the ingestion→analysis→classification→generation chain is wired together end to end (via `app/workflow/pipeline.py`, exposed synchronously as `POST /api/v1/pipeline/process` and as background jobs via `POST /api/v1/pipeline/jobs` + `GET /api/v1/pipeline/jobs/{id}?desde=n`, which the frontend uses). OCI storage, the metrics dashboard, and RAG are not implemented. `frontend/` is a Next.js app (HITL review inbox + BFF proxy routes under `src/app/api/`); see `frontend/README.md`. `frontend/app.py` and `frontend/requirements.txt` are leftovers from the old placeholder and are not used by the Node Dockerfile.
+Only the ingestion→analysis→classification→generation chain is wired together end to end (via `app/workflow/pipeline.py`, exposed synchronously as `POST /api/v1/pipeline/process` and as background jobs via `POST /api/v1/pipeline/jobs` + `GET /api/v1/pipeline/jobs/{id}?desde=n`, which the frontend uses). OCI storage, the metrics dashboard, and RAG are not implemented. `frontend/` is an Astro app (server output, Node adapter) with one React island for the HITL review inbox, and BFF proxy endpoints under `src/pages/api/`. `src/middleware.ts` requires a session on every page and `/api/*` route (the backend token lives in the `cia_session` httpOnly cookie and the BFF forwards it as `Bearer`); simulated data is only used with `DEMO_MODE=true`. See `frontend/README.md`. `frontend/app.py` and `frontend/requirements.txt` are leftovers from the old placeholder and are not used by the Node Dockerfile.
 
 Read `docs/Architecture.md` and `docs/DataContract.md` before changing contracts or adding a phase — they describe the agreed module boundaries and the external-vs-internal contract split in more depth than this file.
 
@@ -39,7 +39,8 @@ uvicorn app.main:app --reload
 Docker (from the repo root):
 
 ```bash
-docker compose up --build             # backend on :8000 + Next.js frontend on :3000
+docker compose up --build             # production config: backend on :8000 + Astro frontend on :3000
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build   # local dev: mounted code + uvicorn --reload
 docker compose up --build backend     # backend only
 docker compose exec backend python -m pytest -q
 curl http://localhost:8000/health
@@ -53,15 +54,26 @@ curl http://localhost:8000/health
 
 ### Request flow
 
-`backend/app/main.py` builds the FastAPI app and registers three routers:
+`backend/app/main.py` builds the FastAPI app and registers these routers. Every route except `/health` and the public `/auth` endpoints (login, registro, restablecer) requires a session (see "Authentication" below):
 
 | Prefix | Router module | Purpose |
 | --- | --- | --- |
+| `/api/v1/auth` | `app/api/v1/auth.py` | Login, logout, `me`, registration with an invitation token, password reset with a recovery token. |
+| `/api/v1/usuarios` | `app/api/v1/usuarios.py` | Admin only: list users, change role/active flag, create/revoke invitations, create recovery links. |
 | `/api/v1/ingest` | `app/api/v1/ingestion.py` | Team A only: validate a batch, run LLM analysis per interaction, return analysis (no classification/generation). |
 | `/api/v1/pipeline` | `app/api/v1/pipeline.py` → `app/workflow/pipeline.py::process_batch` | Full orchestration: Team A analysis → Team B classification graph → Team C generation, per interaction. |
 | `/api/v1/review` | `app/api/v1/review.py` | HITL: list/patch generated asset candidates (`estado_aprobacion`, `contenido`) stored by Team C. |
 
 `iter_batch` is the one place that wires A→B→C together; it yields one `ResultadoPipelineItem` per interaction as soon as it finishes, and `process_batch` just collects it. `app/workflow/jobs.py` runs `iter_batch` in a background thread, keeping jobs in process memory (lost on restart, assumes a single Uvicorn worker) and serializing batches with a lock so interactions are processed one at a time. For each interaction it: builds an `InteraccionInterna`, calls `analyze_interaction` (falls back to a neutral `AnalisisInterno` + `degradado=True` on failure), invokes the Team B LangGraph classification graph, and — if routed to content generation — calls `generate_assets` and persists candidates via `upsert_generation_result`. Failures at any stage are captured per-item in an `error` string and do **not** abort the rest of the batch; isolate-failures-per-item is the pattern to preserve when touching this function.
+
+### Authentication (`app/auth/`, contracts in `app/contracts/auth.py`)
+
+- Users, sessions and invitations live in SQLite (`backend/data/auth.db`, path overridable with `AUTH_DB_PATH`); `app/auth/db.py` opens one connection per operation.
+- Sessions are opaque random tokens sent as `Authorization: Bearer`; only their SHA-256 is stored. They expire after 12 h idle (sliding) and 7 days max. Logout, deactivation, role change and password reset delete the user's sessions.
+- Passwords use argon2id with OWASP-minimum parameters (sized for the 1 GB OCI VMs). Login failures are rate-limited per email in process memory (5 per 15 min, same single-worker assumption as jobs); per-IP limiting belongs to the BFF.
+- Roles are hierarchical `admin > revisor > lector`; protect routes with `requiere_lector` / `requiere_revisor` / `requiere_admin` from `app/auth/dependencies.py`. Ingest, pipeline, review and publish need `revisor`; reading storage needs `lector`.
+- Registration is invitation-only (no open sign-up). The first admin is created with `python -m app.auth.crear_admin --email … --nombre …`; there are no default credentials.
+- `tests/conftest.py` points `AUTH_DB_PATH` at a temp file and overrides `usuario_actual` with a fake admin for all tests; `tests/auth/conftest.py` disables that override to test the real flow.
 
 ### Team B classification graph (`app/workflow/classification_graph.py`)
 

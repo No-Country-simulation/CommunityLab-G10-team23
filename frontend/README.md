@@ -47,7 +47,13 @@ docker compose up --build
 - Frontend: **http://localhost:3000**
 - Backend: **http://localhost:8000** (documentación interactiva en `/docs`)
 
-En la cabecera verás **● Conectado** si el frontend llega al backend, o **Modo demostración** si no (ver [Resiliencia](#-arquitectura-de-comunicación-bff)).
+La aplicación exige iniciar sesión. La primera vez, crea el administrador (pide la contraseña sin mostrarla) y entra en http://localhost:3000/login:
+
+```bash
+docker compose exec -it backend python -m app.auth.crear_admin --email <tu-correo> --nombre "<tu nombre>"
+```
+
+Las demás cuentas se crean por invitación desde **Administración → Equipo** (no hay registro abierto). Cada rol ve solo sus vistas: *Solo lectura* entra directo a la tabla de casos y al dashboard; *Revisión* además usa la bandeja; *Administración* además gestiona el equipo. En la barra lateral verás **Conectado** si el frontend llega al backend, **Sin conexión** si no, o **Modo demostración** con `DEMO_MODE=true` (ver [Sesión y modo demostración](#-arquitectura-de-comunicación-bff)).
 
 Comandos útiles:
 
@@ -132,16 +138,23 @@ El backend redacta el copy de LinkedIn como un post (gancho, párrafos cortos, l
 frontend/
 ├── astro.config.mjs                     # Salida server + adaptador Node standalone, React y Tailwind (Vite)
 └── src/
+    ├── middleware.ts                    # Exige sesión en páginas y /api/*, CSRF y cabeceras de seguridad
     ├── pages/
-    │   ├── index.astro                  # Página única: monta la isla <ReviewApp client:load />
+    │   ├── index.astro                  # Sin sesión: portada pública; con sesión: la isla <ReviewApp client:load usuario={…} />
+    │   ├── login.astro                  # Inicio de sesión
+    │   ├── registro.astro               # Crear cuenta con el enlace de invitación (?token=)
+    │   ├── restablecer.astro            # Contraseña nueva con el enlace de recuperación (?token=)
     │   └── api/                         # BFF (endpoints de servidor de Astro)
-    │       ├── health.ts                # GET /health
+    │       ├── auth/                    # login, logout, registro, restablecer y me (cookie httpOnly)
+    │       ├── usuarios/[...path].ts    # Equipo e invitaciones (solo administración) → /api/v1/usuarios
+    │       ├── health.ts                # GET /health (público)
     │       ├── pipeline/jobs/index.ts   # POST /api/v1/pipeline/jobs (con simulador)
     │       ├── pipeline/jobs/[id].ts    # GET /api/v1/pipeline/jobs/{id}?desde=n
     │       ├── review/assets/[id].ts    # PATCH /api/v1/review/assets/{id}
     │       └── storage/                 # packages, packages/[...slug] y publish (OCI vía backend)
     ├── layouts/
-    │   └── BaseLayout.astro             # <html>, <head>, fuentes y estilos globales
+    │   ├── BaseLayout.astro             # <html>, <head>, fuentes y estilos globales
+    │   └── AuthLayout.astro             # Marco de las pantallas de acceso
     ├── styles/
     │   └── global.css                   # Tokens de color y tipografía (única fuente de colores)
     ├── components/
@@ -149,9 +162,16 @@ frontend/
     │   ├── Header.tsx                   # Cabecera: lote y avance, cargar JSON, reprocesar, guardar, estado del backend
     │   ├── ReviewTable.tsx              # Tabla de datos con menú ⋮ por fila
     │   ├── InteractionDetailModal.tsx   # Ventana de detalle con editor por formato y acciones HITL
-    │   └── HistoryView.tsx              # Historial y dashboard (se carga al abrir la vista)
+    │   ├── HistoryView.tsx              # Historial y dashboard (se carga al abrir la vista)
+    │   ├── TeamView.tsx                 # Equipo: personas, invitaciones y enlaces de un solo uso (solo administración)
+    │   └── landing/                     # Portada pública inspirada en el tema Dong (GodRay, tarjetas spotlight, navegación)
     ├── lib/
-    │   ├── bff.ts                       # BACKEND_URL y respuestas JSON del BFF (solo servidor)
+    │   ├── env.ts                       # BACKEND_URL, DEMO_MODE, COOKIE_SECURE y TRUST_PROXY (solo servidor)
+    │   ├── bff.ts                       # Reenvío a FastAPI con el token de la sesión (solo servidor)
+    │   ├── session.ts                   # Cookie de sesión y validación con caché de 30 s (solo servidor)
+    │   ├── rateLimit.ts, authProxy.ts   # Límite de intentos por IP y reenvío de login/registro (solo servidor)
+    │   ├── api.ts                       # fetch del navegador: ante un 401 vuelve al login
+    │   ├── authForm.ts                  # Comportamiento de los formularios de acceso
     │   ├── review.ts                    # Pestañas, etiquetas, campos por formato y armado de filas
     │   ├── samples.ts                   # Lotes de demostración
     │   └── simulation.ts                # Resultado simulado para el modo demostración
@@ -183,7 +203,11 @@ El navegador nunca llama directamente a FastAPI: usa endpoints de servidor de As
 ```
 
 - **Fila por fila**: el backend procesa un lote a la vez y, dentro de él, una interacción a la vez. La página consulta el avance cada 2 s y agrega a la tabla las filas nuevas. No hay un tiempo máximo de espera por lote; si el backend deja de responder 5 veces seguidas, el lote se marca como interrumpido y se conservan las filas recibidas.
-- **Resiliencia ante caídas (modo demostración)**: si el backend no está disponible al crear el trabajo, el proxy responde con un resultado simulado (`src/lib/simulation.ts`) para seguir navegando la interfaz. Los cambios de revisión sobre esos datos solo se guardan en la sesión.
+- **Sesión**: al iniciar sesión, el BFF guarda el token que emite FastAPI en la cookie `cia_session` (`httpOnly`, `SameSite=Strict`); el JavaScript del navegador nunca lo ve. El middleware (`src/middleware.ts`) valida la cookie contra `/api/v1/auth/me` (con una caché de 30 s), redirige las páginas a `/login` y responde 401 en `/api/*`. La excepción es `/`: sin sesión muestra la portada pública y con sesión, la aplicación. Cada llamada al backend lleva el token, así que FastAPI vuelve a comprobar sesión y rol: un usuario desactivado pierde el acceso a la API al instante.
+- **CSRF**: además de `SameSite=Strict`, las peticiones `POST`/`PATCH`/`PUT`/`DELETE` a `/api/*` deben venir de la misma página (`Sec-Fetch-Site` u `Origin`); si no, 403.
+- **Límite de intentos**: 20 intentos fallidos de login, registro o restablecimiento por IP cada 15 minutos (el backend limita además 5 por correo).
+- **Modo demostración (`DEMO_MODE=true`)**: sin inicio de sesión ni backend; los trabajos se simulan (`src/lib/simulation.ts`) y la revisión solo vive en la sesión. Solo se activa a propósito: si el backend se cae, la aplicación muestra **Sin conexión** y no inventa resultados.
+- **Detrás de un proxy HTTPS** (Caddy, load balancer): define `COOKIE_SECURE=true` para marcar la cookie como `Secure`, y `TRUST_PROXY=true` para tomar la IP del cliente de `X-Forwarded-For` (solo si el proxy es tuyo; si no, cualquiera podría falsear su IP).
 
 ---
 

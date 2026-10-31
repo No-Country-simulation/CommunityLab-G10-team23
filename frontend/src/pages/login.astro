@@ -1,0 +1,56 @@
+---
+import AuthLayout from "@/layouts/AuthLayout.astro";
+
+// Avisos según el motivo por el que se llegó aquí (lo añade el middleware o el cliente).
+const motivo = Astro.url.searchParams.get("motivo");
+const aviso =
+  motivo === "sesion"
+    ? "Tu sesión terminó. Inicia sesión de nuevo para continuar."
+    : motivo === "servidor"
+      ? "No pudimos conectar con el servidor. Inténtalo de nuevo en unos minutos."
+      : motivo === "restablecida"
+        ? "Tu contraseña se cambió. Inicia sesión con la nueva."
+        : null;
+---
+
+<AuthLayout
+  title="Iniciar sesión"
+  heading="Inicia sesión"
+  intro="Entra para subir un lote, revisar los borradores pendientes o consultar el historial."
+>
+  <form id="login-form" class="flex flex-col gap-5" novalidate>
+    <p data-alert class="auth-alert" data-tone="info" role="alert" hidden={!aviso}>{aviso}</p>
+
+    <div class="auth-field">
+      <label for="email">Correo</label>
+      <input id="email" name="email" type="email" autocomplete="username" required autofocus />
+    </div>
+    <div class="auth-field">
+      <label for="password">Contraseña</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+    </div>
+
+    <button type="submit" class="btn-primary w-full py-3" data-busy="Entrando…">Iniciar sesión</button>
+
+    <p class="text-sm leading-relaxed opacity-70">
+      ¿No tienes cuenta o olvidaste tu contraseña? Pide a quien administra Community IA un enlace de invitación o de
+      recuperación.
+    </p>
+  </form>
+</AuthLayout>
+
+<script>
+  import { bindAuthForm, safeNext } from "@/lib/authForm";
+
+  const form = document.querySelector<HTMLFormElement>("#login-form")!;
+  bindAuthForm(form, {
+    endpoint: "/api/auth/login",
+    build: (data) => {
+      const email = String(data.get("email") ?? "").trim();
+      const password = String(data.get("password") ?? "");
+      if (!email || !password) return "Escribe tu correo y tu contraseña.";
+      return { email, password };
+    },
+    onSuccess: () => window.location.assign(safeNext()),
+  });
+</script>

@@ -2,8 +2,9 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.auth.dependencies import requiere_lector, requiere_revisor
 from app.contracts.models import RespuestaProcesamiento, SolicitudProcesamiento
 from app.schemas.internal import ResultadoPipelineItem
 from app.storage.oci_storage import (
@@ -22,7 +23,7 @@ class SolicitudPublicacion(SolicitudProcesamiento):
     items: list[ResultadoPipelineItem] | None = None
 
 
-@router.post("/publish", response_model=RespuestaProcesamiento)
+@router.post("/publish", response_model=RespuestaProcesamiento, dependencies=[Depends(requiere_revisor)])
 def publish_to_oci(request: SolicitudPublicacion) -> RespuestaProcesamiento:
     """Endpoint oficial del Hackathon:
     Recibe el lote de interacciones, realiza el análisis de IA (o usa los ítems revisados),
@@ -38,7 +39,7 @@ def publish_to_oci(request: SolicitudPublicacion) -> RespuestaProcesamiento:
         ) from error
 
 
-@router.get("/packages")
+@router.get("/packages", dependencies=[Depends(requiere_lector)])
 def get_all_packages() -> dict[str, Any]:
     """Lista todos los paquetes de distribución oficiales persistidos en OCI bajo 'activos/'.
     Incluye por default el contenido JSON completo de cada paquete para consulta inmediata.
@@ -85,7 +86,7 @@ def get_all_packages() -> dict[str, Any]:
         ) from error
 
 
-@router.get("/packages/{periodo_referencia:path}")
+@router.get("/packages/{periodo_referencia:path}", dependencies=[Depends(requiere_lector)])
 def get_published_package(periodo_referencia: str) -> dict[str, Any]:
     """Recupera el paquete JSON almacenado en OCI Object Storage para un periodo o ruta dada."""
     if periodo_referencia.endswith(".json"):
@@ -113,7 +114,7 @@ def get_published_package(periodo_referencia: str) -> dict[str, Any]:
         ) from error
 
 
-@router.get("/status")
+@router.get("/status", dependencies=[Depends(requiere_lector)])
 def get_storage_status() -> dict[str, Any]:
     """Informa el estado de la configuración de OCI Object Storage."""
     return {

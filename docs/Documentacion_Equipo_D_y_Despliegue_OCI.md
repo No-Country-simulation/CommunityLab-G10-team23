@@ -1,11 +1,11 @@
 # Documentación Técnica: Equipo D — Almacenamiento OCI, Dashboard y Despliegue en la Nube
-## Proyecto CommunityLab — Hackathon ONE G10 (Equipo 23)
+## Proyecto Community IA — Hackathon ONE G10 (Equipo 23)
 
 ---
 
 ## 1. Resumen Ejecutivo y Alcance del Equipo D
 
-En la arquitectura de **CommunityLab**, el **Equipo D** es el responsable de la etapa final del pipeline, de la persistencia durable en la nube de Oracle, de la analítica visual y de la infraestructura completa del sistema:
+En la arquitectura de **Community IA**, el **Equipo D** es el responsable de la etapa final del pipeline, de la persistencia durable en la nube de Oracle, de la analítica visual y de la infraestructura completa del sistema:
 
 1. **Ensamblado y Validación del Contrato Oficial:** Traduce los resultados internos del pipeline y de la revisión humana (HITL de Equipo C) al contrato externo formal estipulado por el Hackathon (`RespuestaProcesamiento`).
 2. **Regla de Desempate por Relevancia:** Aplica la lógica de negocio para seleccionar, de entre todos los activos generados y aprobados, el de mayor `relevance_score` por formato oficial (`post_linkedin`, `destaque_newsletter_semanal`, `sugerencia_contenido_faq`).
@@ -86,7 +86,7 @@ flowchart TB
                     Backend["Contenedor Backend: FastAPI + Uvicorn (Puerto 8000)"]
                     LangGraphEngine["Motor LangGraph + Rate-Limiter (Gemini 15 RPM)"]
                     OCISDK["Cliente OCI Python SDK"]
-                    AuthVol["Volumen montado: /home/opc/.oci -> /root/.oci (Solo Lectura)"]
+                    AuthVol["Volumen montado: /home/opc/.oci (Solo Lectura, UID 1000)"]
                 end
             end
 
@@ -218,7 +218,7 @@ El cliente se crea en la primera operación de almacenamiento. El log del backen
   "activos_distribucion_generados": {
     "post_linkedin": {
       "titulo": "Primer empleo tras el bootcamp",
-      "copy": "Hoy celebramos un logro de nuestra comunidad…\n\n#CommunityLab #ONE",
+      "copy": "Hoy celebramos un logro de nuestra comunidad…\n\n#CommunityIA #ONE",
       "canal_recomendado": "LinkedIn Oficial",
       "potencial_engagement": "Alto"
     },
@@ -390,12 +390,9 @@ El Frontend implementa el patrón **Backend-For-Frontend (BFF)** con Route Handl
   ```env
   BACKEND_URL=http://164.152.246.126:8000
   ```
-  `docker-compose.yml` fija `BACKEND_URL=http://backend:8000`, el valor para cuando ambos servicios corren en la misma máquina. En la instancia frontend se sobrescribe con un `docker-compose.override.yml`:
-  ```yaml
-  services:
-    frontend:
-      environment:
-        - BACKEND_URL=http://164.152.246.126:8000
+  `docker-compose.yml` usa `BACKEND_URL=${BACKEND_URL:-http://backend:8000}`: sin valor, apunta al backend del mismo compose. En la instancia frontend se define en el `.env` de la raíz del repositorio (ver [Guia_Despliegue_OCI.md](Guia_Despliegue_OCI.md)):
+  ```env
+  BACKEND_URL=http://164.152.246.126:8000
   ```
 * **Ventaja Arquitectónica:** Elimina completamente los problemas de CORS (*Cross-Origin Resource Sharing*) en el cliente web y oculta los detalles de red interna.
 
@@ -409,18 +406,17 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     volumes:
-      - ./backend:/app
-      - /home/opc/.oci:/root/.oci:ro
-      - /home/opc/.oci:/home/opc/.oci:ro
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - backend-data:/app/data
+      - ${OCI_CONFIG_DIR:-/home/opc/.oci}:/home/opc/.oci:ro
 ```
 
 > [!NOTE]
-> Las credenciales de OCI se montan en modo solo lectura (`:ro`) desde el directorio del usuario `opc` del host, garantizando que el contenedor posea permisos de autenticación contra OCI Object Storage sin exponer claves privadas en las imágenes de Docker.
+> Las credenciales de OCI se montan en modo solo lectura (`:ro`) desde el directorio del usuario `opc` del host, garantizando que el contenedor posea permisos de autenticación contra OCI Object Storage sin exponer claves privadas en las imágenes de Docker. El contenedor corre sin privilegios (UID 1000, el mismo de `opc`); el resto del endurecimiento y el análisis de seguridad están en [Guia_Despliegue_OCI.md](Guia_Despliegue_OCI.md#seguridad-del-despliegue).
 
 ---
 

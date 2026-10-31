@@ -54,14 +54,14 @@ export function DetailPanel({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-ink-900/50 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-50 bg-scrim backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onRequestClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="detail-panel-title"
-        className="bg-white rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] border border-ink-200"
+        className="bg-surface rounded-2xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92dvh] border border-ink-200"
       >
         <div className="px-4 sm:px-6 py-4 border-b border-ink-200 flex flex-wrap items-center justify-between gap-3 bg-ink-50/70">
           <div className="flex items-center gap-3 min-w-0">
@@ -158,7 +158,7 @@ export function ChannelTabs({
           >
             <span>{t.label}</span>
             <span className={`w-2 h-2 rounded-full ${ESTADO_DOT[t.estado] ?? ESTADO_DOT.pendiente}`} title={`Estado: ${t.estado}`} />
-            {t.dirty && <span className={selected ? "text-brand-100" : "text-brand-600"} title="Cambios sin guardar">•</span>}
+            {t.dirty && <span className={selected ? "text-white/80" : "text-brand-600"} title="Cambios sin guardar">•</span>}
           </button>
         );
       })}
@@ -196,7 +196,7 @@ export function InteractionSummary({ texto, tipoNote, fecha, alerts, analisis, c
 
       <section className="space-y-2">
         <PanelTitle>Interacción original</PanelTitle>
-        <blockquote className="p-3.5 bg-white border border-ink-200 rounded-xl text-xs text-ink-800 leading-relaxed shadow-2xs whitespace-pre-wrap">
+        <blockquote className="p-3.5 bg-surface border border-ink-200 rounded-xl text-xs text-ink-800 leading-relaxed shadow-2xs whitespace-pre-wrap">
           {texto}
         </blockquote>
         <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-ink-500 pt-0.5">
@@ -235,7 +235,7 @@ export function InteractionSummary({ texto, tipoNote, fecha, alerts, analisis, c
         <div className="grid grid-cols-2 gap-3">
           <div>
             <span className="text-xs text-ink-500 block mb-1 font-medium">Categoría</span>
-            <span className="text-xs font-bold text-ink-800 bg-white px-2.5 py-1 rounded-lg border border-ink-200 block truncate">
+            <span className="text-xs font-bold text-ink-800 bg-surface px-2.5 py-1 rounded-lg border border-ink-200 block truncate">
               {categoria}
             </span>
           </div>
@@ -274,7 +274,7 @@ function ChipList({
             <span
               key={`${v}-${i}`}
               className={`text-[11px] px-2 py-0.5 rounded-md border font-medium ${
-                accent ? "bg-brand-50 border-brand-100 text-brand-700" : "bg-white border-ink-200 text-ink-700"
+                accent ? "bg-brand-50 border-brand-100 text-brand-700" : "bg-surface border-ink-200 text-ink-700"
               }`}
             >
               {prefix}
@@ -293,7 +293,7 @@ function TextBox({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
       <span className="text-xs text-ink-500 block mb-1 font-medium">{label}</span>
-      <p className="text-xs text-ink-600 bg-white p-2.5 rounded-lg border border-ink-200 leading-relaxed">{children}</p>
+      <p className="text-xs text-ink-600 bg-surface p-2.5 rounded-lg border border-ink-200 leading-relaxed">{children}</p>
     </div>
   );
 }

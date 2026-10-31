@@ -12,7 +12,7 @@ interface PageHeaderProps {
 // 14px al 60% y acciones a la derecha.
 export function PageHeader({ icon, title, subtitle, actions, children }: PageHeaderProps) {
   return (
-    <header className="bg-white px-4 sm:px-5 pt-6 sm:pt-[30px] pb-4 flex flex-col gap-4">
+    <header className="bg-surface px-4 sm:px-5 pt-6 sm:pt-[30px] pb-4 flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-start gap-2.5 min-w-0 flex-1 basis-80">
           <span className="text-brand-600 mt-0.5 shrink-0">{icon}</span>

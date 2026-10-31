@@ -1,0 +1,65 @@
+---
+/*
+ * Portada pública de Community IA (sin sesión). Guía visual: tema Dong para Astro
+ * (riceball-tw.github.io/dong). Los comentarios [ref] señalan qué patrón de Dong adapta cada parte.
+ */
+import ClosingCta from "@/components/landing/ClosingCta.astro";
+import LandingFooter from "@/components/landing/LandingFooter.astro";
+import LandingHero from "@/components/landing/LandingHero.astro";
+import LandingNav from "@/components/landing/LandingNav.astro";
+import ProductSection from "@/components/landing/ProductSection.astro";
+---
+
+<div class="landing bg-landing-bg text-landing-ink min-h-dvh">
+  <a href="#inicio" class="skip-link">Saltar al contenido</a>
+  <LandingNav />
+  <main>
+    <LandingHero />
+    <ProductSection />
+    <ClosingCta />
+  </main>
+  <LandingFooter />
+</div>
+
+<style is:global>
+  /* [ref] Dong: --mainNav-height de 80px y scroll suave (desactivado con movimiento reducido). */
+  :root {
+    --landing-nav-height: 80px;
+  }
+  html:has(.landing) {
+    scroll-behavior: smooth;
+    background-color: var(--color-landing-bg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html:has(.landing) {
+      scroll-behavior: auto;
+    }
+  }
+  /* En la portada los enlaces toman el color del texto (el morado global es para la app).
+     En @layer base para que .btn-primary y los estilos de cada botón sigan ganando. */
+  @layer base {
+    .landing a {
+      color: inherit;
+    }
+  }
+  .landing-anchor {
+    scroll-margin-top: calc(var(--landing-nav-height) + 1rem);
+  }
+  .landing ::selection {
+    background-color: var(--color-brand-500);
+    color: var(--color-white);
+  }
+  .skip-link {
+    position: absolute;
+    left: 1rem;
+    top: -4rem;
+    z-index: 60;
+    border-radius: 9999px;
+    background-color: var(--color-surface);
+    padding: 0.5rem 1rem;
+    font-weight: 600;
+  }
+  .skip-link:focus {
+    top: 1rem;
+  }
+</style>

@@ -1,4 +1,4 @@
-# Arquitectura de CommunityLab
+# Arquitectura de Community IA
 
 ## Enfoque
 

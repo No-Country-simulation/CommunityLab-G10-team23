@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Upload, Loader2, Search, Inbox, FileJson, LayoutList, RefreshCw } from "lucide-react";
-import { Sidebar, type AppView } from "@/components/Sidebar";
+import { Sidebar, viewsFor, type AppView } from "@/components/Sidebar";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusCards, type ReviewFilter } from "@/components/StatusCards";
 import { AlertDialog } from "@/components/AlertDialog";
@@ -27,10 +27,13 @@ import {
   rowStatuses,
   rowsForTab,
 } from "@/lib/review";
+import { apiFetch } from "@/lib/api";
+import type { Usuario } from "@/types/auth";
 import { copyToClipboard } from "@/lib/clipboard";
 
 // El historial es la vista más pesada: se descarga solo cuando el usuario la abre.
 const HistoryView = lazy(() => import("@/components/HistoryView").then((m) => ({ default: m.HistoryView })));
+const TeamView = lazy(() => import("@/components/TeamView").then((m) => ({ default: m.TeamView })));
 
 type ToastType = "success" | "error" | "info";
 
@@ -103,7 +106,7 @@ function parseBatch(text: string): SolicitudProcesamiento {
   };
 }
 
-export default function ReviewApp() {
+export default function ReviewApp({ usuario }: { usuario: Usuario | null }) {
   const [solicitud, setSolicitud] = useState<SolicitudProcesamiento | null>(null);
   const [result, setResult] = useState<ResultadoPipeline | null>(null);
   const [job, setJob] = useState<{ id: string; estado: EstadoTrabajo; total: number; procesadas: number } | null>(null);
@@ -121,7 +124,10 @@ export default function ReviewApp() {
   const [pendingWarning, setPendingWarning] = useState<{ interacciones: number; activos: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null);
-  const [viewMode, setViewMode] = useState<AppView>("revision");
+  // Cada rol empieza en la primera vista que puede usar (quien solo lee, en la tabla de casos).
+  const allowedViews = viewsFor(usuario);
+  const [viewMode, setViewModeState] = useState<AppView>(allowedViews[0] ?? "tabla");
+  const setViewMode = (next: AppView) => allowedViews.includes(next) && setViewModeState(next);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -138,7 +144,7 @@ export default function ReviewApp() {
     setIsSubmitting(true);
     setViewMode("revision");
     try {
-      const response = await fetch("/api/pipeline/jobs", {
+      const response = await apiFetch("/api/pipeline/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(lote),
@@ -165,7 +171,7 @@ export default function ReviewApp() {
       notify(
         json.source === "fastapi"
           ? `Analizando ${data.total} ${data.total === 1 ? "mensaje" : "mensajes"}. Verás cada resultado en cuanto esté listo.`
-          : "No pudimos conectar con el servidor. Te mostramos datos de ejemplo para que explores la bandeja.",
+          : "Modo demostración: te mostramos resultados de ejemplo para que explores la bandeja.",
         "info"
       );
     } catch (err: any) {
@@ -183,7 +189,7 @@ export default function ReviewApp() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`/api/pipeline/jobs/${job.id}?desde=${receivedRef.current}`);
+        const res = await apiFetch(`/api/pipeline/jobs/${job.id}?desde=${receivedRef.current}`);
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.data) throw new Error(errorDetail(json, `HTTP ${res.status}`));
         if (cancelled) return;
@@ -249,7 +255,7 @@ export default function ReviewApp() {
         ...solicitud,
         items: result?.interacciones_procesadas ?? [],
       };
-      const response = await fetch("/api/storage/publish", {
+      const response = await apiFetch("/api/storage/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -301,7 +307,7 @@ export default function ReviewApp() {
   ): Promise<boolean> => {
     setSavingId(candidato.candidato_id);
     try {
-      const res = await fetch(`/api/review/assets/${candidato.candidato_id}`, {
+      const res = await apiFetch(`/api/review/assets/${candidato.candidato_id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ estado_aprobacion: newStatus, contenido }),
@@ -420,7 +426,7 @@ export default function ReviewApp() {
 
   return (
     <div className="h-dvh flex flex-col lg:flex-row bg-ink-50">
-      <Sidebar view={viewMode} onViewChange={setViewMode} />
+      <Sidebar view={viewMode} onViewChange={setViewMode} usuario={usuario} />
       <input
         ref={fileInputRef}
         type="file"
@@ -434,7 +440,11 @@ export default function ReviewApp() {
       />
 
       <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
-      {viewMode !== "revision" ? (
+      {viewMode === "equipo" && usuario ? (
+        <Suspense fallback={<div className="h-full flex items-center justify-center"><LoadingState label="Cargando el equipo…" /></div>}>
+          <TeamView usuario={usuario} notify={notify} />
+        </Suspense>
+      ) : viewMode === "tabla" || viewMode === "dashboard" ? (
         <main className="flex-1 min-h-0 overflow-hidden bg-ink-50">
           <Suspense fallback={<div className="h-full flex items-center justify-center"><LoadingState label="Cargando historial…" /></div>}>
             <HistoryView view={viewMode} onViewChange={setViewMode} />
@@ -514,7 +524,7 @@ export default function ReviewApp() {
           ) : (
             <div
               className={`text-center w-full max-w-lg flex flex-col items-center gap-5 px-6 py-12 sm:px-10 rounded-3xl border-2 border-dashed transition-colors ${
-                isDragging ? "border-brand-500 bg-brand-100" : "border-ink-300 bg-white"
+                isDragging ? "border-brand-500 bg-brand-100" : "border-ink-300 bg-surface"
               }`}
             >
               <div className="w-14 h-14 rounded-2xl bg-brand-100 text-brand-700 flex items-center justify-center">
@@ -540,7 +550,7 @@ export default function ReviewApp() {
           ) : (
         <>
           {/* Nivel 1: estados de revisión (tarjetas resumen seleccionables) */}
-          <div className="bg-white px-4 sm:px-5 pb-4">
+          <div className="bg-surface px-4 sm:px-5 pb-4">
             <StatusCards
               active={activeFilter}
               onSelect={selectFilter}
@@ -560,7 +570,7 @@ export default function ReviewApp() {
           </div>
 
           {/* Nivel 2: filtro por contenido (formato y búsqueda) */}
-          <div className="bg-white border-b border-ink-200 px-4 sm:px-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+          <div className="bg-surface border-b border-ink-200 px-4 sm:px-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
             <nav className="flex gap-1 overflow-x-auto -mb-px max-w-full" role="tablist" aria-label="Filtrar por formato">
               {TABS.map((t) => {
                 const count = countForTab(t.key);
@@ -605,10 +615,10 @@ export default function ReviewApp() {
             </div>
           </div>
 
-          <main className="flex-1 overflow-auto bg-white relative" {...dropHandlers}>
+          <main className="flex-1 overflow-auto bg-surface relative" {...dropHandlers}>
             {isDragging && (
               <div className="absolute inset-0 z-20 bg-brand-500/10 border-2 border-dashed border-brand-500 backdrop-blur-xs flex items-center justify-center">
-                <div className="bg-white px-6 py-4 rounded-xl shadow-lg text-sm font-semibold text-brand-700 flex items-center gap-2">
+                <div className="bg-surface px-6 py-4 rounded-xl shadow-lg text-sm font-semibold text-brand-700 flex items-center gap-2">
                   <Upload className="w-4 h-4 animate-bounce" />
                   Suelta el archivo para revisarlo
                 </div>
@@ -689,7 +699,7 @@ export default function ReviewApp() {
       {toast && (
         <div
           role="status"
-          className="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-6 sm:right-6 z-70 bg-ink-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm"
+          className="fixed bottom-4 right-4 left-4 sm:left-auto sm:bottom-6 sm:right-6 z-70 bg-ink-900 text-ink-50 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm"
         >
           <span
             className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center text-xs ${

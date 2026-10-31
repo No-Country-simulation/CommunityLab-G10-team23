@@ -26,7 +26,7 @@ export function AlertDialog({ icon, title, children, actions, onClose }: AlertDi
 
   return (
     <div
-      className="fixed inset-0 z-60 bg-ink-900/50 backdrop-blur-[2px] flex items-center justify-center p-4"
+      className="fixed inset-0 z-60 bg-scrim backdrop-blur-[2px] flex items-center justify-center p-4"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
@@ -35,7 +35,7 @@ export function AlertDialog({ icon, title, children, actions, onClose }: AlertDi
         aria-modal="true"
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-body"
-        className="bg-white w-full max-w-md rounded-2xl border border-ink-200 shadow-2xl p-6 flex flex-col gap-4"
+        className="bg-surface w-full max-w-md rounded-2xl border border-ink-200 shadow-2xl p-6 flex flex-col gap-4"
       >
         <div className="flex items-start gap-3">
           <span className="p-2 rounded-xl bg-warning-100 text-warning-800 shrink-0">{icon}</span>

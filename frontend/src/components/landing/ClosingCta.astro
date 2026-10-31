@@ -1,0 +1,65 @@
+---
+/*
+ * Cierre. Para no repetir el hero, la composición cambia: panel oscuro con el color de la barra
+ * lateral de la aplicación (anticipa lo que se verá al entrar), texto alineado a la izquierda y
+ * los rayos de luz [ref] naciendo desde la esquina contraria (abajo a la izquierda).
+ */
+import { LogIn } from "lucide-react";
+import GodRay from "@/components/landing/GodRay.astro";
+---
+
+<section class="px-4 md:px-6 pb-24 md:pb-28" aria-labelledby="cierre-titulo">
+  <div class="closing relative isolate overflow-hidden mx-auto max-w-6xl rounded-2xl bg-chrome text-chrome-text">
+    <GodRay origin="bottom-left" intensity={0.45} />
+    <div class="px-6 py-14 md:px-14 md:py-20 grid gap-10 md:grid-cols-[1fr_auto] md:items-end">
+      <div class="flex flex-col gap-4">
+        <h2 id="cierre-titulo" class="text-3xl md:text-5xl font-bold tracking-tight leading-[1.15] text-white">
+          <span class="block">La IA propone.</span>
+          <span class="block">Tu equipo decide.</span>
+        </h2>
+        <p class="text-base md:text-lg leading-relaxed text-chrome-text/80 max-w-[48ch]">
+          Entra para subir un lote, revisar los borradores pendientes o consultar el historial.
+        </p>
+      </div>
+      <div class="flex flex-col gap-3 md:items-end">
+        <a href="/login" class="closing-cta">
+          <LogIn className="w-5 h-5" aria-hidden="true" /> Iniciar sesión
+        </a>
+        <p class="text-sm text-chrome-text/70 max-w-[32ch] md:text-right">
+          ¿Aún no tienes cuenta? Pide una invitación a quien administra Community IA.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .closing-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    align-self: flex-start;
+    border-radius: 70px;
+    padding: 0.875rem 1.75rem;
+    font-size: 1rem;
+    font-weight: 600;
+    background-color: var(--color-white);
+    color: var(--color-chrome);
+    transition: background-color 150ms;
+  }
+  .closing-cta:hover {
+    background-color: #e8e3ff; /* brand-100 claro fijo: el bloque es oscuro en los dos temas */
+  }
+  .closing-cta:active {
+    background-color: #d6d4fe;
+  }
+  .closing-cta:focus-visible {
+    outline-color: var(--color-white);
+  }
+  @media (min-width: 768px) {
+    .closing-cta {
+      align-self: flex-end;
+    }
+  }
+</style>

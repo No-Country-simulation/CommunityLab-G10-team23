@@ -1,0 +1,71 @@
+---
+/*
+ * Pie [ref] — como GlobalFooter.astro de Dong: degradado hacia arriba desde primary/10, marca con
+ * lema a la izquierda y columnas de enlaces a la derecha. En móvil deja sitio para la píldora de
+ * navegación fija, igual que Dong. Solo enlaces que existen; sin redes ni páginas legales inventadas.
+ * También lo usan las pantallas de acceso (sin píldora: pillSpace={false}).
+ */
+interface Props {
+  /** Reserva espacio para la píldora de navegación móvil de la portada. */
+  pillSpace?: boolean;
+}
+const { pillSpace = true } = Astro.props;
+const year = new Date().getFullYear();
+const links = [
+  { href: "/#producto", label: "Qué es" },
+  { href: "/#como-funciona", label: "Cómo funciona" },
+  { href: "/login", label: "Iniciar sesión" },
+];
+---
+
+<footer class:list={["landing-footer text-landing-ink", pillSpace && "pill-space"]}>
+  <div class="mx-auto max-w-6xl px-6 py-10 flex flex-wrap justify-between gap-10">
+    <div class="flex flex-col gap-3">
+      <a href="/" class="inline-flex items-center gap-2.5 font-bold text-lg">
+        <span class="brand-mark w-8 h-8" aria-hidden="true"></span>
+        Community IA
+      </a>
+      <p class="text-sm opacity-80">Revisión humana del contenido que prepara la IA.</p>
+      <small class="text-xs opacity-60">Proyecto del Grupo 10, Equipo 23. {year}.</small>
+    </div>
+    <nav aria-label="Enlaces del pie">
+      <p class="font-bold mb-2 px-3">Navegación</p>
+      <ul>
+        {
+          links.map((link) => (
+            <li>
+              <a href={link.href} class="footer-link">
+                {link.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</footer>
+
+<style>
+  .landing-footer {
+    background-image: linear-gradient(to top, rgb(139 96 255 / 0.1), transparent 90%);
+  }
+  .pill-space {
+    margin-bottom: calc(var(--landing-nav-height) + 1rem + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 768px) {
+    .pill-space {
+      margin-bottom: 0;
+    }
+  }
+  .footer-link {
+    display: inline-block;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    opacity: 0.7;
+    transition: opacity 150ms;
+  }
+  .footer-link:hover,
+  .footer-link:focus-visible {
+    opacity: 1;
+  }
+</style>

@@ -1,20 +1,14 @@
 import type { APIRoute } from "astro";
-import { backendUrl, errorMessage, json } from "@/lib/bff";
+import { backendError, backendFetch, errorMessage, isDemo, json } from "@/lib/bff";
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ locals }) => {
+  // En modo demostración no hay paquetes guardados en OCI.
+  if (isDemo()) return json({ status: "ok", total: 0, packages: [] });
+
   try {
-    const response = await fetch(`${backendUrl()}/api/v1/storage/packages`, {
-      method: "GET",
-      cache: "no-store",
-    });
-
-    const data = await response.json().catch(() => null);
-
-    if (response.ok) {
-      return json(data);
-    }
-
-    return json({ error: "Error al listar paquetes desde OCI", detail: data?.detail ?? data }, response.status);
+    const response = await backendFetch(locals.token, "/api/v1/storage/packages");
+    if (!response.ok) return backendError(response, "Error al listar paquetes desde OCI");
+    return json(await response.json());
   } catch (error) {
     return json(
       { error: "No se pudo conectar con el backend de almacenamiento", detail: errorMessage(error) },

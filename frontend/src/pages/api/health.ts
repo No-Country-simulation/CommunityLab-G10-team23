@@ -1,16 +1,17 @@
 import type { APIRoute } from "astro";
-import { backendUrl, errorMessage, json } from "@/lib/bff";
+import { backendUrl, errorMessage, isDemo, json } from "@/lib/bff";
 
+// Público: la barra lateral lo usa para mostrar si hay conexión con el backend.
 export const GET: APIRoute = async () => {
+  if (isDemo()) return json({ status: "demo" });
   try {
     const res = await fetch(`${backendUrl()}/health`, {
       method: "GET",
       cache: "no-store",
-      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(5000),
     });
     if (res.ok) {
-      const data = await res.json();
-      return json({ status: "online", backend: data });
+      return json({ status: "online", backend: await res.json() });
     }
     return json({ status: "offline", error: "Backend responded with non-200" });
   } catch (err) {

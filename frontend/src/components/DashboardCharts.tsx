@@ -86,7 +86,7 @@ export function RingChart({ segments, center, caption }: { segments: Segment[]; 
               return s.value > 0 ? el : null;
             })}
         </svg>
-        <div className="absolute inset-[38px] rounded-full bg-white shadow-[0_5px_25px_rgb(0_0_0/0.1)] flex flex-col items-center justify-center text-center">
+        <div className="absolute inset-[38px] rounded-full bg-surface shadow-(--shadow-card) flex flex-col items-center justify-center text-center">
           <span className="text-3xl font-medium text-chart-text leading-none">{center}</span>
           <span className="text-[11px] text-ink-500 mt-1">{caption}</span>
         </div>
@@ -140,10 +140,10 @@ export function BarList({ items, total }: { items: (Segment & { hint?: string })
             >
               {pct > 0 && (
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full border-[0.5px] border-white flex items-center justify-end pr-2 transition-[width] duration-500"
+                  className="absolute inset-y-0 left-0 rounded-full border-[0.5px] border-surface flex items-center justify-end pr-2 transition-[width] duration-500"
                   style={{ ...fill(item.color), width: `${Math.max(pct, 6)}%` }}
                 >
-                  <span className="w-[3px] h-2.5 rounded-full bg-white" />
+                  <span className="w-[3px] h-2.5 rounded-full bg-surface" />
                 </div>
               )}
             </div>

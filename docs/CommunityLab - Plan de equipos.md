@@ -1,8 +1,8 @@
-# CommunityLab — Plan de equipos (Grupo 10)
+# Community IA — Plan de equipos (Grupo 10)
 
 ## Resumen ejecutivo
 
-CommunityLab es un MVP de motor de inteligencia comunitaria: toma interacciones dispersas en Discord, formularios, CSV o GitHub, las analiza con un LLM y las convierte en activos de marketing (posts, newsletters, FAQs) con revisión humana antes de publicarse, persistiendo todo en OCI Object Storage.
+Community IA es un MVP de motor de inteligencia comunitaria: toma interacciones dispersas en Discord, formularios, CSV o GitHub, las analiza con un LLM y las convierte en activos de marketing (posts, newsletters, FAQs) con revisión humana antes de publicarse, persistiendo todo en OCI Object Storage.
 
 Este documento junta dos análisis que ya se hicieron del proyecto: uno más ajustado al enunciado oficial, y una versión más extensa con diagramas C4, contratos de datos y un desglose semana a semana. No coinciden en todo. Donde difieren, se señala en la sección "Análisis crítico", con cuál queda y por qué. Esta es la versión de referencia para los 4 equipos: si algo cambia después, se edita aquí, no en una copia aparte.
 
