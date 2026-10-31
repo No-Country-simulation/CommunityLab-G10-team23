@@ -31,15 +31,6 @@ class EstadoAlmacenamientoOCI(str, Enum):
     guardado_con_exito = "guardado_con_exito"
 
 
-class AccionRevision(str, Enum):
-    """Qué hizo una persona sobre un activo candidato (historial de revisión)."""
-
-    aprobar = "aprobar"
-    rechazar = "rechazar"
-    reabrir = "reabrir"
-    editar = "editar"
-
-
 class EstadoTrabajo(str, Enum):
     en_cola = "en_cola"
     en_proceso = "en_proceso"
@@ -54,5 +45,4 @@ __all__ = [
     "EstadoRespuesta",
     "EstadoAlmacenamientoOCI",
     "EstadoTrabajo",
-    "AccionRevision",
 ]

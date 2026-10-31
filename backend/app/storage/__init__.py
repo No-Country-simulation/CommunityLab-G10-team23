@@ -8,7 +8,7 @@ from .oci_storage import (
     get_namespace,
     upload_package,
 )
-from .service import LoteNoPublicable, calcular_resumen_comunidad, publicar_lote
+from .service import calcular_resumen_comunidad, publicar_lote_a_oci
 
 __all__ = [
     "DEFAULT_BUCKET",
@@ -20,6 +20,5 @@ __all__ = [
     "get_bucket_name",
     "get_namespace",
     "calcular_resumen_comunidad",
-    "LoteNoPublicable",
-    "publicar_lote",
+    "publicar_lote_a_oci",
 ]

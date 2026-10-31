@@ -2,7 +2,7 @@ import pytest
 
 from app.contracts.enums import AssetCategory
 from app.intelligence.classifier import classify_analysis
-from app.contracts.models import AnalisisInterno
+from app.intelligence.models import AnalisisInterno
 from app.intelligence.scorer import calculate_relevance_score
 
 

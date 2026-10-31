@@ -1,5 +1,4 @@
 from .enums import (
-    AccionRevision,
     AssetCategory,
     EstadoAlmacenamientoOCI,
     EstadoAprobacion,
@@ -11,10 +10,8 @@ from .models import (
     ActivosDistribucion,
     AnalisisInterno,
     AlmacenamientoOCI,
-    Autoria,
     DestaqueNewsletter,
     EnrutamientoInterno,
-    EventoRevision,
     InteraccionEntrada,
     InteraccionInterna,
     OportunidadInterna,
@@ -29,7 +26,6 @@ from .models import (
 )
 
 __all__ = [
-    "AccionRevision",
     "AssetCategory",
     "EstadoAlmacenamientoOCI",
     "EstadoAprobacion",
@@ -40,8 +36,6 @@ __all__ = [
     "OportunidadInterna",
     "ResultadoAnalisisInterno",
     "ActivoCandidato",
-    "Autoria",
-    "EventoRevision",
     "ActivosDistribucion",
     "AlmacenamientoOCI",
     "DestaqueNewsletter",

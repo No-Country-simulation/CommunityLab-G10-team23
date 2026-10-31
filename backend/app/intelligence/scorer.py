@@ -1,7 +1,7 @@
 from app.contracts.enums import AssetCategory
 
 from .classifier import classify_analysis
-from app.contracts.models import AnalisisInterno
+from .models import AnalisisInterno
 
 
 _INTENTION_POINTS = {

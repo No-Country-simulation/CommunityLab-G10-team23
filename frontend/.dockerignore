@@ -1,8 +1,7 @@
-# Se generan dentro de la imagen (npm ci / npm run build); copiarlos desde Windows
+# Se generan dentro de la imagen (npm install / npm run build); copiarlos desde Windows
 # infla el contexto de build y mezclaría binarios de otra plataforma.
 node_modules
-dist
-.astro
+.next
 npm-debug.log*
 
 # Archivos locales que no pertenecen a la imagen
@@ -10,4 +9,3 @@ npm-debug.log*
 Dockerfile
 .dockerignore
 README.md
-docs
